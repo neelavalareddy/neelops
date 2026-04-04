@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/client";
 import { createClient } from "@/lib/supabase/server";
+import type { UserRow } from "@/types/database";
+
+export const dynamic = "force-dynamic";
 
 /**
  * Creates (or resumes) a Stripe Connect Express onboarding link for the
@@ -18,15 +21,16 @@ import { createClient } from "@/lib/supabase/server";
  * before setting stripe_onboarding_complete = true. Do this in the webhook
  * handler on account.updated with charges_enabled = true.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = createClient();
+    const { origin } = new URL(request.url);
 
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      return NextResponse.redirect("/login");
+      return NextResponse.redirect(new URL("/login", origin));
     }
 
     // Fetch existing profile
@@ -34,7 +38,7 @@ export async function GET() {
       .from("users")
       .select("stripe_account_id, email")
       .eq("id", user.id)
-      .single();
+      .single() as { data: Pick<UserRow, "stripe_account_id" | "email"> | null; error: unknown };
 
     if (!profile) {
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
@@ -65,8 +69,8 @@ export async function GET() {
     // Generate onboarding link
     const accountLink = await stripe.accountLinks.create({
       account: stripeAccountId,
-      refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/stripe/connect-onboarding`,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/profile/me?connected=true`,
+      refresh_url: `${origin}/api/stripe/connect-onboarding`,
+      return_url: `${origin}/profile/me?connected=true`,
       type: "account_onboarding",
     });
 

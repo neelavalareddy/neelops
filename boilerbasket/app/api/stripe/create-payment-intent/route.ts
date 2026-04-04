@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe/client";
 import { createClient } from "@/lib/supabase/server";
+import type { OrderRow } from "@/types/database";
+
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
@@ -24,14 +27,26 @@ export async function POST(request: Request) {
       .select("*")
       .eq("id", orderId)
       .eq("requester_id", user.id) // requester must own the order
-      .single();
+      .single() as { data: OrderRow | null; error: unknown };
 
     if (fetchError || !order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    if (order.status !== "open") {
+      return NextResponse.json({ error: "Only open orders can be paid." }, { status: 400 });
+    }
+
     if (order.payment_status !== "pending") {
       return NextResponse.json({ error: "Payment already initialized" }, { status: 400 });
+    }
+
+    if (order.payment_intent_id) {
+      const existingIntent = await stripe.paymentIntents.retrieve(order.payment_intent_id);
+
+      if (existingIntent.status !== "canceled" && existingIntent.client_secret) {
+        return NextResponse.json({ clientSecret: existingIntent.client_secret });
+      }
     }
 
     // TODO: resolve picker's Stripe Connect account id so we can set transfer_data

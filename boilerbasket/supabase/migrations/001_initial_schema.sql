@@ -67,7 +67,7 @@ create table public.orders (
 
   -- Payment
   payment_intent_id   text,                    -- Stripe PaymentIntent id
-  payment_status      text not null default 'pending',  -- pending | held | released | refunded
+  payment_status      text not null default 'pending',  -- pending | held | captured | released | refunded
   payout_transfer_id  text,                    -- Stripe Transfer id for picker payout
 
   -- Status

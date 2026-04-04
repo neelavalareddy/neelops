@@ -3,6 +3,12 @@
 
 export type OrderStatus = "open" | "claimed" | "picked_up" | "delivered" | "cancelled";
 export type RevieweeRole = "requester" | "picker";
+export type PaymentStatus =
+  | "pending"
+  | "held"
+  | "captured"
+  | "released"
+  | "refunded";
 
 export interface Database {
   public: {
@@ -23,12 +29,33 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["users"]["Row"], "created_at" | "updated_at" | "review_count_requester" | "review_count_picker" | "stripe_onboarding_complete"> & {
+        Insert: {
+          id: string;
+          email: string;
+          full_name: string;
+          purdue_id?: string | null;
+          avatar_url?: string | null;
+          rating_as_requester?: number | null;
+          rating_as_picker?: number | null;
           review_count_requester?: number;
           review_count_picker?: number;
+          stripe_account_id?: string | null;
           stripe_onboarding_complete?: boolean;
         };
-        Update: Partial<Database["public"]["Tables"]["users"]["Insert"]>;
+        Update: {
+          id?: string;
+          email?: string;
+          full_name?: string;
+          purdue_id?: string | null;
+          avatar_url?: string | null;
+          rating_as_requester?: number | null;
+          rating_as_picker?: number | null;
+          review_count_requester?: number;
+          review_count_picker?: number;
+          stripe_account_id?: string | null;
+          stripe_onboarding_complete?: boolean;
+        };
+        Relationships: [];
       };
       orders: {
         Row: {
@@ -43,7 +70,7 @@ export interface Database {
           convenience_fee: number;
           total_charge: number;           // generated column
           payment_intent_id: string | null;
-          payment_status: string;
+          payment_status: PaymentStatus;
           payout_transfer_id: string | null;
           status: OrderStatus;
           claimed_at: string | null;
@@ -52,10 +79,43 @@ export interface Database {
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["orders"]["Row"], "id" | "total_charge" | "created_at" | "updated_at"> & {
+        Insert: {
           id?: string;
+          requester_id: string;
+          picker_id?: string | null;
+          dining_hall: string;
+          items: string;
+          dropoff_building: string;
+          notes?: string | null;
+          meal_cost: number;
+          convenience_fee: number;
+          payment_intent_id?: string | null;
+          payment_status?: PaymentStatus;
+          payout_transfer_id?: string | null;
+          status?: OrderStatus;
+          claimed_at?: string | null;
+          picked_up_at?: string | null;
+          delivered_at?: string | null;
         };
-        Update: Partial<Database["public"]["Tables"]["orders"]["Insert"]>;
+        Update: {
+          id?: string;
+          requester_id?: string;
+          picker_id?: string | null;
+          dining_hall?: string;
+          items?: string;
+          dropoff_building?: string;
+          notes?: string | null;
+          meal_cost?: number;
+          convenience_fee?: number;
+          payment_intent_id?: string | null;
+          payment_status?: PaymentStatus;
+          payout_transfer_id?: string | null;
+          status?: OrderStatus;
+          claimed_at?: string | null;
+          picked_up_at?: string | null;
+          delivered_at?: string | null;
+        };
+        Relationships: [];
       };
       reviews: {
         Row: {
@@ -68,17 +128,33 @@ export interface Database {
           comment: string | null;
           created_at: string;
         };
-        Insert: Omit<Database["public"]["Tables"]["reviews"]["Row"], "id" | "created_at"> & {
+        Insert: {
           id?: string;
+          order_id: string;
+          reviewer_id: string;
+          reviewee_id: string;
+          reviewee_role: RevieweeRole;
+          rating: number;
+          comment?: string | null;
         };
-        Update: Partial<Database["public"]["Tables"]["reviews"]["Insert"]>;
+        Update: {
+          id?: string;
+          order_id?: string;
+          reviewer_id?: string;
+          reviewee_id?: string;
+          reviewee_role?: RevieweeRole;
+          rating?: number;
+          comment?: string | null;
+        };
+        Relationships: [];
       };
     };
-    Views: {};
-    Functions: {};
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    CompositeTypes: Record<string, never>;
     Enums: {
-      order_status: OrderStatus;
-      reviewee_role: RevieweeRole;
+      order_status: string[];
+      reviewee_role: string[];
     };
   };
 }

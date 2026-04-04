@@ -1,4 +1,5 @@
 import { getBuildingById } from "@/lib/constants/buildings";
+import { getDropoffCoordinates } from "@/lib/utils/dropoff";
 
 /**
  * Haversine formula — returns straight-line distance in meters between two lat/lng points.
@@ -27,10 +28,10 @@ function haversineMeters(
  */
 export function estimatedWalkMinutes(
   diningHallId: string,
-  dropoffBuildingId: string
+  dropoffLocation: string
 ): number {
   const origin = getBuildingById(diningHallId);
-  const destination = getBuildingById(dropoffBuildingId);
+  const destination = getDropoffCoordinates(dropoffLocation);
 
   if (!origin || !destination) return 0;
 

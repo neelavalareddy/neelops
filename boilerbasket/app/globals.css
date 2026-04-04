@@ -6,10 +6,20 @@
   :root {
     --gold: #CFB991;
     --gold-dark: #8E6F3E;
+    --font-display: "Bebas Neue", Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+    --font-body: "DM Sans", Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   }
 
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
+  }
+
+  .font-display {
+    font-family: var(--font-display), 'Impact', sans-serif;
+  }
+
+  .font-body {
+    font-family: var(--font-body), system-ui, sans-serif;
   }
 }
 
@@ -22,5 +32,19 @@
   /* Status badge base */
   .badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  /* Dark input used on auth pages */
+  .input-dark {
+    @apply w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-white/25 outline-none transition-colors focus:border-[#CFB991]/60;
+    font-family: var(--font-body), system-ui, sans-serif;
+  }
+
+  /* Gold shimmer text */
+  .gold-text {
+    background: linear-gradient(135deg, #CFB991 0%, #EBD99F 40%, #8E6F3E 60%, #CFB991 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }

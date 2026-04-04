@@ -5,9 +5,10 @@ import OrderDetail from "@/components/orders/OrderDetail";
 
 interface Props {
   params: { id: string };
+  searchParams: { payment?: string };
 }
 
-export default async function OrderDetailPage({ params }: Props) {
+export default async function OrderDetailPage({ params, searchParams }: Props) {
   const supabase = createClient();
 
   const {
@@ -50,6 +51,7 @@ export default async function OrderDetailPage({ params }: Props) {
           isRequester={isRequester}
           isPicker={isPicker}
           myReviews={myReviews ?? []}
+          paymentSuccess={searchParams.payment === "success"}
         />
       </main>
     </>

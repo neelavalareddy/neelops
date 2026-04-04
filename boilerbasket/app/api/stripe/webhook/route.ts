@@ -5,6 +5,7 @@ import type Stripe from "stripe";
 
 // Tell Next.js not to parse the body — Stripe needs the raw bytes to verify signature
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
       break;
     }
 
-    // ── Payment captured (delivery confirmed, funds released to picker) ──
+    // ── Payment captured (delivery confirmed, funds captured) ─────────────
     case "payment_intent.succeeded": {
       const pi = event.data.object as Stripe.PaymentIntent;
       const orderId = pi.metadata.order_id;
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
       if (orderId) {
         await supabase
           .from("orders")
-          .update({ payment_status: "released" })
+          .update({ payment_status: "captured" })
           .eq("id", orderId);
       }
       break;
@@ -62,8 +63,9 @@ export async function POST(request: Request) {
     case "payment_intent.canceled":
     case "charge.refunded": {
       const obj = event.data.object as Stripe.PaymentIntent | Stripe.Charge;
-      // payment_intent is on Charge, id on PaymentIntent
-      const piId = "payment_intent" in obj ? obj.payment_intent : obj.id;
+      // payment_intent is on Charge (may be string or expanded object), id on PaymentIntent
+      const rawPi = "payment_intent" in obj ? obj.payment_intent : obj.id;
+      const piId = typeof rawPi === "string" ? rawPi : rawPi?.id ?? null;
 
       if (piId) {
         await supabase
