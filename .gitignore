@@ -20,3 +20,15 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+# general local OS/editor noise
+.DS_Store
+
+# Node.js — applies to classify/ and boilerbasket/
+node_modules/
+.next/
+.env
+.env.local
+.env.production
+.env*.local
+*.log
