@@ -11,11 +11,14 @@ export default function NavBar() {
           <span className="font-display text-xl tracking-wider text-white">CLASSIFY</span>
         </Link>
 
-        <nav className="flex items-center gap-1">
-          <Link href="/tasks" className="nav-link">Browse Tasks</Link>
+        <nav className="flex flex-wrap items-center justify-end gap-0.5 sm:gap-1">
+          <Link href="/agents" className="nav-link">Agents</Link>
+          <Link href="/tasks" className="nav-link">Tasks</Link>
           <Link href="/dashboard" className="nav-link">Dashboard</Link>
-          <Link href="/post" className="c-btn-primary ml-3 py-2 text-xs">
-            Post a Task
+          <Link href="/posted" className="nav-link hidden sm:inline">Posted</Link>
+          <Link href="/agents/new" className="nav-link hidden md:inline">List agent</Link>
+          <Link href="/post" className="c-btn-primary ml-1 sm:ml-2 py-2 text-xs">
+            Post task
           </Link>
         </nav>
       </div>

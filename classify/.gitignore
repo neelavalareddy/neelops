@@ -11,6 +11,11 @@ out/
 .env.production
 .env*.local
 
+# local agent / IDE tooling (do not commit)
+.agents/
+.codex/
+.synq/
+
 # misc
 .DS_Store
 *.log

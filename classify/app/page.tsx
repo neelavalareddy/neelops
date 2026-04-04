@@ -1,11 +1,9 @@
 import Link from "next/link";
-
-const FEATURES = [
-  { label: "01", title: "Sybil-Resistant", body: "World ID nullifier hashes ensure each person submits once per task. No bots. No duplicates." },
-  { label: "02", title: "Instant WLD", body: "Workers receive WLD the moment their evaluation is accepted. No invoices, no waiting." },
-  { label: "03", title: "Structured Evals", body: "Star ratings plus free-form feedback. Companies get aggregated scores and raw insights." },
-  { label: "04", title: "Zero Signup", body: "Verify your humanity once with World ID. No email. No password. No personal data stored." },
-];
+import ApiEndpointsPanel from "@/components/landing/ApiEndpointsPanel";
+import FeatureAccordion from "@/components/landing/FeatureAccordion";
+import HeroParallaxOrb from "@/components/landing/HeroParallaxOrb";
+import LandingRoleToggle from "@/components/landing/LandingRoleToggle";
+import LiveMarketplacePreview from "@/components/landing/LiveMarketplacePreview";
 
 const COMPANY_STEPS = [
   { n: "01", title: "Post a Task", body: "Paste your AI output, write evaluation criteria, set a WLD bounty per response." },
@@ -26,13 +24,19 @@ export default function LandingPage() {
       {/* NAV */}
       <header className="landing-nav">
         <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3">
             <div className="logo-mark">
               <span className="font-display text-lg leading-none" style={{ color: "var(--signal)" }}>C</span>
             </div>
             <span className="font-display text-xl tracking-wider text-white">CLASSIFY</span>
-          </div>
-          <div className="flex items-center gap-2">
+          </Link>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <a href="#live-market" className="lnav-link text-sm hidden sm:inline">
+              Live
+            </a>
+            <a href="#api" className="lnav-link text-sm hidden md:inline">
+              API
+            </a>
             <Link href="/tasks" className="lnav-link text-sm">Browse Tasks</Link>
             <Link href="/post" className="c-btn-primary py-2 text-xs">Post a Task</Link>
           </div>
@@ -46,29 +50,19 @@ export default function LandingPage() {
 
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-24 lg:py-32 grid lg:grid-cols-[1fr_400px] gap-12 items-center">
           <div>
-            <div className="c-pill mb-6 animate-fade-up">Powered by World ID · WLD Payments</div>
+            <div className="c-pill mb-6">Powered by World ID · WLD Payments</div>
 
-            <h1 className="hero-hed animate-fade-up animate-delay-100">
+            <h1 className="hero-hed">
               HUMAN<br />
               FEEDBACK,<br />
               <span className="hero-hed-outline">PROVABLY<br />REAL.</span>
             </h1>
 
-            <p className="hero-sub animate-fade-up animate-delay-200">
-              Companies post AI evaluation tasks.<br />
-              Verified humans complete them.<br />
-              Everyone gets paid in WLD.
-            </p>
-
-            <div className="flex flex-wrap gap-3 mt-8 animate-fade-up animate-delay-300">
-              <Link href="/post" className="c-btn-primary px-7 py-3.5 text-sm">Post a Task →</Link>
-              <Link href="/tasks" className="c-btn-ghost px-7 py-3.5 text-sm">
-                <span className="c-live-dot" style={{ marginRight: 6 }} />
-                Start Earning WLD
-              </Link>
+            <div className="mt-6">
+              <LandingRoleToggle />
             </div>
 
-            <div className="trust-bar animate-fade-up animate-delay-400">
+            <div className="trust-bar">
               {["Sybil-resistant", "World ID verified", "WLD bounties", "No signup"].map((item, i) => (
                 <span key={item} className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
                   {i > 0 && <span style={{ width: 1, height: 12, background: "var(--border-strong)", display: "inline-block" }} />}
@@ -81,18 +75,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Iris orb */}
-          <div className="hero-orb-wrap animate-fade-in animate-delay-200" aria-hidden>
-            <div className="iris-container" style={{ width: 340, height: 340, maxWidth: "100%" }}>
-              <div className="iris-ring iris-ring-1" />
-              <div className="iris-ring iris-ring-2" />
-              <div className="iris-ring iris-ring-3" />
-              <div className="iris-ring iris-ring-4" />
-              <div className="iris-core" />
-              <span style={{ position: "absolute", top: "12%", fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.25em", color: "var(--signal)", opacity: 0.4, textTransform: "uppercase" }}>VERIFIED</span>
-              <span style={{ position: "absolute", bottom: "12%", fontFamily: "var(--font-mono)", fontSize: 9, letterSpacing: "0.25em", color: "var(--signal)", opacity: 0.4, textTransform: "uppercase" }}>HUMAN</span>
-            </div>
-          </div>
+          <HeroParallaxOrb />
         </div>
       </section>
 
@@ -110,24 +93,9 @@ export default function LandingPage() {
         </div>
       </div>
 
-      {/* FEATURES */}
-      <section className="max-w-6xl mx-auto px-6 py-24">
-        <div className="mb-12">
-          <div className="c-pill mb-4">Why Classify</div>
-          <h2 className="font-display text-white leading-none" style={{ fontSize: "clamp(2rem,5vw,3.75rem)", letterSpacing: "0.03em" }}>
-            THE FEEDBACK LAYER<br />AI DESERVES.
-          </h2>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {FEATURES.map((f) => (
-            <div key={f.label} className="feat-card">
-              <div className="feat-num">{f.label}</div>
-              <p className="text-sm font-semibold text-white mb-1.5">{f.title}</p>
-              <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>{f.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      <LiveMarketplacePreview />
+
+      <FeatureAccordion />
 
       {/* HOW IT WORKS */}
       <section className="max-w-6xl mx-auto px-6 pb-24">
@@ -169,6 +137,8 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      <ApiEndpointsPanel />
 
       {/* BOTTOM CTA */}
       <section style={{ position: "relative", overflow: "hidden" }}>
@@ -248,16 +218,9 @@ export default function LandingPage() {
           color: transparent;
           -webkit-text-stroke: 1.5px rgba(0, 255, 135, 0.65);
         }
-        .hero-sub {
-          font-size: 0.9375rem; line-height: 1.8;
-          color: var(--text-dim);
-        }
         .trust-bar {
           display: flex; flex-wrap: wrap; align-items: center;
           gap: 4px; margin-top: 2rem;
-        }
-        .hero-orb-wrap {
-          display: flex; align-items: center; justify-content: center;
         }
 
         .ticker-wrap {
@@ -276,21 +239,6 @@ export default function LandingPage() {
           font-family: var(--font-mono);
           font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
           color: var(--text-muted);
-        }
-
-        .feat-card {
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: 16px; padding: 20px;
-          transition: border-color 0.2s, transform 0.2s;
-        }
-        .feat-card:hover { border-color: rgba(0,255,135,0.14); transform: translateY(-2px); }
-        .feat-num {
-          font-family: var(--font-display);
-          font-size: 2.25rem; line-height: 1;
-          color: transparent;
-          -webkit-text-stroke: 1px rgba(0,255,135,0.2);
-          margin-bottom: 10px;
         }
 
         .how-card {

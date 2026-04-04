@@ -1,5 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import type { Task } from "@/types/database";
+
+const PREVIEW_LEN = 140;
 
 interface Props {
   task: Task;
@@ -9,9 +14,9 @@ interface Props {
 }
 
 export default function TaskCard({ task, responseCount, avgRating, showActions = true }: Props) {
-  const preview = task.ai_output.length > 140
-    ? task.ai_output.slice(0, 140).trimEnd() + "…"
-    : task.ai_output;
+  const [expanded, setExpanded] = useState(false);
+  const isLong = task.ai_output.length > PREVIEW_LEN;
+  const preview = isLong ? task.ai_output.slice(0, PREVIEW_LEN).trimEnd() + "…" : task.ai_output;
 
   const isOpen = task.status === "open";
 
@@ -27,7 +32,12 @@ export default function TaskCard({ task, responseCount, avgRating, showActions =
             {task.company_name}
           </span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          {task.predicted_score != null && (
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "rgba(0,255,135,0.08)", color: "var(--signal)", border: "1px solid var(--signal-border)" }}>
+              AI {task.predicted_score}★
+            </span>
+          )}
           <span className="c-badge-gold">◈ {task.bounty_wld} WLD</span>
           {isOpen
             ? <span className="c-badge-signal"><span className="c-live-dot" />Open</span>
@@ -37,11 +47,20 @@ export default function TaskCard({ task, responseCount, avgRating, showActions =
       </div>
 
       {/* AI Output preview */}
-      <div className="ai-preview mb-3">
+      <div className="ai-preview mb-2">
         <div className="c-label" style={{ marginBottom: "6px" }}>AI OUTPUT</div>
-        <p className="text-xs leading-relaxed font-mono" style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-          {preview}
+        <p className="text-xs leading-relaxed font-mono whitespace-pre-wrap" style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+          {expanded || !isLong ? task.ai_output : preview}
         </p>
+        {isLong && (
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            className="task-expand-btn mt-2"
+          >
+            {expanded ? "Show less" : "Show full output"}
+          </button>
+        )}
       </div>
 
       {/* Criteria preview */}
@@ -104,6 +123,20 @@ export default function TaskCard({ task, responseCount, avgRating, showActions =
           border: 1px solid var(--border);
           border-radius: 10px;
           padding: 12px;
+        }
+        .task-expand-btn {
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--signal);
+          background: transparent;
+          border: none;
+          padding: 0;
+          cursor: pointer;
+          text-decoration: underline;
+          text-underline-offset: 3px;
+        }
+        .task-expand-btn:hover {
+          color: #33ff99;
         }
       `}</style>
     </div>

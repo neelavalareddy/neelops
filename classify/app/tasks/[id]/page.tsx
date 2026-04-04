@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, hasSupabaseEnv } from "@/lib/supabase/server";
+import MissingSupabaseConfig from "@/components/MissingSupabaseConfig";
 import NavBar from "@/components/NavBar";
 import TaskFeedbackForm from "./TaskFeedbackForm";
 import StarRating from "@/components/StarRating";
+import CollapsiblePre from "@/components/CollapsiblePre";
+import TaskAiMeta from "@/components/tasks/TaskAiMeta";
 import type { Task, Response } from "@/types/database";
 
 export const revalidate = 0;
@@ -13,6 +16,16 @@ interface Props {
 
 export default async function TaskDetailPage({ params }: Props) {
   const { id } = await params;
+
+  if (!hasSupabaseEnv()) {
+    return (
+      <>
+        <NavBar />
+        <MissingSupabaseConfig />
+      </>
+    );
+  }
+
   const supabase = createClient();
 
   const { data: task } = await supabase
@@ -71,9 +84,7 @@ export default async function TaskDetailPage({ params }: Props) {
             {/* AI Output */}
             <div className="detail-card">
               <div className="c-label">AI Output to Evaluate</div>
-              <pre className="text-sm leading-relaxed whitespace-pre-wrap overflow-x-auto" style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", background: "rgba(255,255,255,0.02)", borderRadius: 10, padding: "14px", border: "1px solid var(--border)" }}>
-                {task.ai_output}
-              </pre>
+              <CollapsiblePre text={task.ai_output} />
             </div>
 
             {/* Criteria */}
@@ -81,6 +92,8 @@ export default async function TaskDetailPage({ params }: Props) {
               <div className="c-label">Evaluation Criteria</div>
               <p className="text-sm leading-relaxed" style={{ color: "var(--text-dim)" }}>{task.criteria}</p>
             </div>
+
+            <TaskAiMeta task={task} avgHumanRating={avgRating} responseCount={responses?.length ?? 0} />
 
             {/* Responses */}
             {responses && responses.length > 0 && (
@@ -96,8 +109,15 @@ export default async function TaskDetailPage({ params }: Props) {
                 <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                   {responses.map((r) => (
                     <div key={r.id} className="response-row">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <StarRating value={r.rating} readonly size="sm" />
+                      <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <StarRating value={r.rating} readonly size="sm" />
+                          {r.flagged_suspicious && (
+                            <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded" style={{ background: "rgba(255,69,84,0.12)", color: "var(--red)", border: "1px solid rgba(255,69,84,0.25)" }}>
+                              Review
+                            </span>
+                          )}
+                        </div>
                         <span className="text-xs" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
                           {new Date(r.created_at).toLocaleDateString()}
                         </span>

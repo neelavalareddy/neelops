@@ -37,7 +37,7 @@ export default function PostTaskPage() {
       return;
     }
     const { id } = await res.json();
-    router.push(`/dashboard?highlight=${id}`);
+    router.push(`/posted?highlight=${id}`);
   }
 
   const bountyNum = parseFloat(bounty) || 0;
@@ -189,8 +189,8 @@ export default function PostTaskPage() {
                 </span>
               ) : "Post Task →"}
             </button>
-            <Link href="/dashboard" className="c-btn-ghost py-3.5">
-              Dashboard
+            <Link href="/posted" className="c-btn-ghost py-3.5">
+              Posted tasks
             </Link>
           </div>
         </form>

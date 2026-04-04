@@ -1,10 +1,23 @@
 import { NextResponse } from "next/server";
-import { createClient, createServiceClient } from "@/lib/supabase/server";
-import type { Response } from "@/types/database";
+import { extractConsensusInsights } from "@/lib/ai/anthropic";
+import { computeSuspiciousFlags } from "@/lib/ai/anomaly";
+import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
+import type { Response, Task } from "@/types/database";
 
 export async function POST(request: Request) {
   try {
-    const { task_id, nullifier_hash, rating, feedback_text } = await request.json();
+    if (!hasSupabaseServiceEnv()) {
+      return NextResponse.json({ error: "Supabase service role is not configured." }, { status: 503 });
+    }
+
+    const body = await request.json();
+    const { task_id, nullifier_hash, rating, feedback_text, time_to_submit_ms } = body as {
+      task_id?: string;
+      nullifier_hash?: string;
+      rating?: number;
+      feedback_text?: string;
+      time_to_submit_ms?: number | null;
+    };
 
     if (!task_id || !nullifier_hash) {
       return NextResponse.json({ error: "task_id and nullifier_hash are required." }, { status: 400 });
@@ -17,8 +30,8 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceClient();
+    const trimmedFeedback = feedback_text.trim();
 
-    // Check task exists and is open
     const { data: task, error: taskError } = await supabase
       .from("tasks")
       .select("id, status, bounty_wld")
@@ -32,7 +45,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "This task is closed." }, { status: 400 });
     }
 
-    // Check nullifier uniqueness per task (one response per person per task)
     const { data: existing } = await supabase
       .from("responses")
       .select("id")
@@ -47,7 +59,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Insert response (paid=true since payment is mocked)
+    const flagged = await computeSuspiciousFlags(
+      supabase,
+      nullifier_hash,
+      rating,
+      time_to_submit_ms,
+      trimmedFeedback.length
+    );
+
+    const timeMs =
+      typeof time_to_submit_ms === "number" && time_to_submit_ms >= 0 && time_to_submit_ms < 3600_000
+        ? Math.round(time_to_submit_ms)
+        : null;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from("responses")
@@ -55,8 +79,10 @@ export async function POST(request: Request) {
         task_id,
         nullifier_hash,
         rating,
-        feedback_text: feedback_text.trim(),
+        feedback_text: trimmedFeedback,
         paid: true,
+        flagged_suspicious: flagged,
+        time_to_submit_ms: timeMs,
       })
       .select()
       .single() as { data: Response | null; error: unknown };
@@ -65,9 +91,52 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to save response." }, { status: 500 });
     }
 
-    return NextResponse.json({ id: data.id, bounty_wld: task.bounty_wld });
+    await maybeGenerateInsights(supabase, task_id);
+
+    return NextResponse.json({ id: data.id, bounty_wld: task.bounty_wld, flagged_suspicious: flagged });
   } catch (err) {
     console.error("[responses POST]", err);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function maybeGenerateInsights(supabase: any, task_id: string) {
+  try {
+    const { data: t } = await supabase
+      .from("tasks")
+      .select("insights_json, ai_output, criteria")
+      .eq("id", task_id)
+      .single() as { data: Pick<Task, "ai_output" | "criteria"> & { insights_json: unknown } | null };
+
+    if (!t || t.insights_json) return;
+
+    const { count, error: cErr } = await supabase
+      .from("responses")
+      .select("*", { count: "exact", head: true })
+      .eq("task_id", task_id);
+
+    if (cErr || (count ?? 0) < 5) return;
+
+    const { data: rows } = await supabase
+      .from("responses")
+      .select("rating, feedback_text")
+      .eq("task_id", task_id) as { data: Array<{ rating: number; feedback_text: string }> | null };
+
+    if (!rows || rows.length < 5) return;
+
+    const feedbacks = rows.map((r) => ({ rating: r.rating, text: r.feedback_text }));
+    const insights = await extractConsensusInsights(t.ai_output, t.criteria, feedbacks);
+    if (!insights) return;
+
+    await supabase
+      .from("tasks")
+      .update({
+        insights_json: insights,
+        insights_generated_at: new Date().toISOString(),
+      })
+      .eq("id", task_id);
+  } catch (e) {
+    console.error("[maybeGenerateInsights]", e);
   }
 }

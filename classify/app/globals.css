@@ -3,6 +3,14 @@
 @tailwind utilities;
 
 @layer base {
+  /* Solid fallbacks so the page never flashes white if variables fail to apply. */
+  html {
+    background-color: #050507;
+    color: #f0f2ff;
+    color-scheme: dark;
+    min-height: 100%;
+  }
+
   :root {
     --signal: #00FF87;
     --signal-dim: rgba(0, 255, 135, 0.12);
@@ -27,8 +35,8 @@
   }
 
   body {
-    background-color: var(--bg);
-    color: var(--text);
+    background-color: var(--bg, #050507);
+    color: var(--text, #f0f2ff);
     font-family: var(--font-body), 'DM Sans', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -218,6 +226,24 @@
     background: var(--signal);
     animation: pulse-dot 2s ease-in-out infinite;
   }
+
+  /* ─── LEGACY ALIASES (pre-c- prefix migration) ───────────────── */
+  .glass-card { @apply c-card; }
+  .btn-primary { @apply c-btn-primary; }
+  .btn-ghost { @apply c-btn-ghost; }
+  .section-pill { @apply c-pill; }
+  .label { @apply c-label; }
+  .input-dark { @apply c-input; }
+  .wld-badge { @apply c-badge-gold; }
+  .verified-badge { @apply c-badge-signal; }
+
+  /* Decorative background blob */
+  .orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(80px);
+    pointer-events: none;
+  }
 }
 
 /* ─── ANIMATIONS ─────────────────────────────────────────────────── */
@@ -241,19 +267,21 @@
   50% { opacity: 0.8; }
 }
 
+/* Motion only (no opacity): avoids invisible content when animations are delayed,
+   paused, or reduced — `both` + opacity:0 in `from` left hero text stuck at opacity 0. */
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { transform: translateY(14px); }
+  to { transform: translateY(0); }
 }
 
 @keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { transform: scale(0.94); }
+  to { transform: scale(1); }
 }
 
 @keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(20px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { transform: translateX(16px); }
+  to { transform: translateX(0); }
 }
 
 @keyframes glow-pulse {
@@ -266,14 +294,44 @@
   to { transform: translateX(-50%); }
 }
 
-.animate-fade-up { animation: fade-up 0.5s ease both; }
-.animate-fade-in { animation: fade-in 0.4s ease both; }
+/* Longhand + explicit fill-mode so delays + stacking with other animation utilities stay predictable. */
+.animate-fade-up {
+  animation-name: fade-up;
+  animation-duration: 0.55s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: forwards;
+}
+.animate-fade-in {
+  animation-name: fade-in;
+  animation-duration: 0.45s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  animation-fill-mode: forwards;
+}
 .animate-delay-100 { animation-delay: 100ms; }
+.animate-delay-150 { animation-delay: 150ms; }
 .animate-delay-200 { animation-delay: 200ms; }
 .animate-delay-300 { animation-delay: 300ms; }
 .animate-delay-400 { animation-delay: 400ms; }
 .animate-delay-500 { animation-delay: 500ms; }
 .animate-delay-600 { animation-delay: 600ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-in {
+    animation: none !important;
+    animation-name: none !important;
+    transform: none !important;
+  }
+  .animate-delay-100,
+  .animate-delay-150,
+  .animate-delay-200,
+  .animate-delay-300,
+  .animate-delay-400,
+  .animate-delay-500,
+  .animate-delay-600 {
+    animation-delay: 0ms !important;
+  }
+}
 
 /* ─── IRIS ELEMENT ───────────────────────────────────────────────── */
 .iris-container {

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import WorldIDButton from "@/components/WorldIDButton";
 import StarRating from "@/components/StarRating";
+import { persistWorkerNullifier } from "@/lib/workerIdentity";
 import type { Task } from "@/types/database";
 
 type Step = "verify" | "rate" | "submitting" | "done" | "error";
@@ -14,14 +16,18 @@ interface Props {
 const RATING_LABELS = ["", "Poor", "Below average", "Average", "Good", "Excellent"];
 
 export default function TaskFeedbackForm({ task }: Props) {
+  const router = useRouter();
   const [step, setStep] = useState<Step>("verify");
   const [nullifierHash, setNullifierHash] = useState("");
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const rateStartedAtRef = useRef<number | null>(null);
 
   function onVerified(hash: string) {
+    persistWorkerNullifier(hash);
     setNullifierHash(hash);
+    rateStartedAtRef.current = Date.now();
     setStep("rate");
   }
 
@@ -30,10 +36,19 @@ export default function TaskFeedbackForm({ task }: Props) {
     if (rating === 0) return;
     setStep("submitting");
 
+    const time_to_submit_ms =
+      rateStartedAtRef.current != null ? Date.now() - rateStartedAtRef.current : null;
+
     const res = await fetch("/api/responses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ task_id: task.id, nullifier_hash: nullifierHash, rating, feedback_text: feedback.trim() }),
+      body: JSON.stringify({
+        task_id: task.id,
+        nullifier_hash: nullifierHash,
+        rating,
+        feedback_text: feedback.trim(),
+        time_to_submit_ms,
+      }),
     });
 
     if (!res.ok) {
@@ -43,7 +58,9 @@ export default function TaskFeedbackForm({ task }: Props) {
       return;
     }
 
+    persistWorkerNullifier(nullifierHash);
     setStep("done");
+    router.refresh();
   }
 
   if (task.status === "closed") {
@@ -87,9 +104,14 @@ export default function TaskFeedbackForm({ task }: Props) {
           Rating {rating}/5 recorded. Thank you for your honest feedback.
         </p>
 
-        <a href="/tasks" className="c-btn-primary w-full justify-center py-3">
-          Evaluate another task →
-        </a>
+        <div className="flex flex-col gap-2">
+          <a href="/dashboard" className="c-btn-gold w-full justify-center py-3">
+            View your dashboard →
+          </a>
+          <a href="/tasks" className="c-btn-primary w-full justify-center py-3">
+            Evaluate another task →
+          </a>
+        </div>
 
         <style>{`
           .hash-display {

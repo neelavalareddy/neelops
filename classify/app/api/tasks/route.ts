@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { predictTaskQuality } from "@/lib/ai/anthropic";
+import { createClient, hasSupabaseEnv } from "@/lib/supabase/server";
 import type { Task } from "@/types/database";
 
 export async function GET() {
+  if (!hasSupabaseEnv()) {
+    return NextResponse.json({ error: "Supabase is not configured." }, { status: 503 });
+  }
   const supabase = createClient();
   const { data, error } = await supabase
     .from("tasks")
@@ -15,6 +19,10 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    if (!hasSupabaseEnv()) {
+      return NextResponse.json({ error: "Supabase is not configured." }, { status: 503 });
+    }
+
     const { company_name, ai_output, criteria, bounty_wld } = await request.json();
 
     if (!company_name?.trim() || !ai_output?.trim() || !criteria?.trim()) {
@@ -36,7 +44,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to create task." }, { status: 500 });
     }
 
-    return NextResponse.json({ id: data.id, task: data });
+    let taskOut = data as Task;
+    const prediction = await predictTaskQuality(data.ai_output, data.criteria);
+    if (prediction) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: uErr } = await (supabase as any)
+        .from("tasks")
+        .update({
+          predicted_score: prediction.score,
+          prediction_rationale: prediction.rationale,
+        })
+        .eq("id", data.id);
+      if (!uErr) {
+        taskOut = {
+          ...taskOut,
+          predicted_score: prediction.score,
+          prediction_rationale: prediction.rationale,
+        };
+      }
+    }
+
+    return NextResponse.json({ id: taskOut.id, task: taskOut });
   } catch (err) {
     console.error("[tasks POST]", err);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });
