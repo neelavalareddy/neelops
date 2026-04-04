@@ -47,7 +47,8 @@ export async function POST() {
       return NextResponse.json({ message: "Already seeded.", count });
     }
 
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
       .from("tasks")
       .insert(SEED_TASKS)
       .select();

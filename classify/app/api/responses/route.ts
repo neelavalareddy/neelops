@@ -48,7 +48,8 @@ export async function POST(request: Request) {
     }
 
     // Insert response (paid=true since payment is mocked)
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
       .from("responses")
       .insert({
         task_id,

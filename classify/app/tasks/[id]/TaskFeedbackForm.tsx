@@ -11,9 +11,11 @@ interface Props {
   task: Task;
 }
 
+const RATING_LABELS = ["", "Poor", "Below average", "Average", "Good", "Excellent"];
+
 export default function TaskFeedbackForm({ task }: Props) {
   const [step, setStep] = useState<Step>("verify");
-  const [nullifierHash, setNullifierHash] = useState<string>("");
+  const [nullifierHash, setNullifierHash] = useState("");
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -26,18 +28,12 @@ export default function TaskFeedbackForm({ task }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (rating === 0) return;
-
     setStep("submitting");
 
     const res = await fetch("/api/responses", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        task_id: task.id,
-        nullifier_hash: nullifierHash,
-        rating,
-        feedback_text: feedback.trim(),
-      }),
+      body: JSON.stringify({ task_id: task.id, nullifier_hash: nullifierHash, rating, feedback_text: feedback.trim() }),
     });
 
     if (!res.ok) {
@@ -52,147 +48,195 @@ export default function TaskFeedbackForm({ task }: Props) {
 
   if (task.status === "closed") {
     return (
-      <div className="glass-card p-6 text-center space-y-3">
-        <p className="text-3xl">🔒</p>
-        <p className="font-bold text-white">This task is closed</p>
-        <p className="text-sm text-gray-500">No more submissions are being accepted.</p>
+      <div className="form-card" style={{ textAlign: "center", padding: 32 }}>
+        <p className="text-3xl mb-3">🔒</p>
+        <p className="font-display text-xl text-white tracking-wider mb-1">TASK CLOSED</p>
+        <p className="text-sm" style={{ color: "var(--text-muted)" }}>No more submissions are being accepted.</p>
       </div>
     );
   }
 
   if (step === "done") {
     return (
-      <div className="glass-card p-8 text-center space-y-5">
-        <div className="w-16 h-16 mx-auto rounded-2xl bg-[#F5C842]/10 border border-[#F5C842]/20 flex items-center justify-center text-3xl">
-          ◈
+      <div className="form-card" style={{ textAlign: "center", padding: 32 }}>
+        {/* Payment confirmation */}
+        <div className="iris-container mx-auto mb-6" style={{ width: 72, height: 72 }} aria-hidden>
+          <div className="iris-ring iris-ring-1" />
+          <div className="iris-ring iris-ring-2" />
+          <div className="iris-ring iris-ring-3" />
+          <div className="iris-core" />
         </div>
-        <div>
-          <p className="text-2xl font-black text-white mb-1">Payment Sent!</p>
-          <p className="text-sm text-gray-400">
-            <span className="text-[#F5C842] font-bold">{task.bounty_wld} WLD</span> has been sent to your
-            World ID wallet.
-          </p>
+
+        <p className="font-display text-3xl text-white tracking-wider mb-1">PAYMENT SENT!</p>
+        <p className="text-sm mb-4" style={{ color: "var(--text-dim)" }}>
+          <span style={{ color: "var(--gold)", fontWeight: 700 }}>{task.bounty_wld} WLD</span> has been sent to your World ID wallet.
+        </p>
+
+        <div className="hash-display">
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>nullifier</span>
+          <span className="text-xs font-mono break-all" style={{ color: "var(--signal)", fontFamily: "var(--font-mono)" }}>
+            {nullifierHash.slice(0, 28)}…
+          </span>
         </div>
-        <div className="rounded-xl bg-[#F5C842]/5 border border-[#F5C842]/10 px-4 py-3 text-xs text-gray-500 font-mono break-all">
-          nullifier: {nullifierHash.slice(0, 24)}…
+
+        <div className="my-4 flex justify-center">
+          <StarRating value={rating} readonly size="md" />
         </div>
-        <div className="space-y-2">
-          <p className="text-xs text-gray-600">
-            Your feedback has been recorded. Rating: {rating}/5
-          </p>
-          <div className="flex justify-center">
-            <StarRating value={rating} readonly size="sm" />
-          </div>
-        </div>
-        <a
-          href="/tasks"
-          className="btn-primary w-full justify-center"
-        >
+
+        <p className="text-xs mb-6" style={{ color: "var(--text-muted)" }}>
+          Rating {rating}/5 recorded. Thank you for your honest feedback.
+        </p>
+
+        <a href="/tasks" className="c-btn-primary w-full justify-center py-3">
           Evaluate another task →
         </a>
+
+        <style>{`
+          .hash-display {
+            display: flex; flex-direction: column; gap: 4px;
+            background: rgba(0,255,135,0.04);
+            border: 1px solid var(--signal-border);
+            border-radius: 10px; padding: 12px; margin-bottom: 16px;
+            text-align: left;
+          }
+        `}</style>
       </div>
     );
   }
 
   if (step === "error") {
     return (
-      <div className="glass-card p-8 text-center space-y-5">
-        <p className="text-3xl">❌</p>
-        <p className="font-bold text-white">Submission failed</p>
-        <p className="text-sm text-red-400">{errorMsg}</p>
-        <button onClick={() => setStep("rate")} className="btn-ghost w-full justify-center">
+      <div className="form-card" style={{ textAlign: "center", padding: 32 }}>
+        <p className="text-3xl mb-3">✗</p>
+        <p className="font-display text-xl text-white tracking-wider mb-1">SUBMISSION FAILED</p>
+        <p className="text-sm mb-6" style={{ color: "var(--red)" }}>{errorMsg}</p>
+        <button onClick={() => setStep("rate")} className="c-btn-ghost w-full justify-center py-3">
           Try again
         </button>
       </div>
     );
   }
 
+  const verified = step !== "verify";
+
   return (
-    <div className="glass-card p-6 space-y-6">
-      {/* Bounty */}
-      <div className="flex items-center justify-between">
-        <p className="font-bold text-white">Submit Evaluation</p>
-        <span className="wld-badge text-base px-4 py-1.5">◈ {task.bounty_wld} WLD</span>
+    <div className="form-card">
+      {/* Bounty header */}
+      <div className="flex items-center justify-between mb-5">
+        <p className="font-semibold text-white text-sm">Submit Evaluation</p>
+        <span className="c-badge-gold" style={{ fontSize: "0.9rem", padding: "6px 14px" }}>
+          ◈ {task.bounty_wld} WLD
+        </span>
       </div>
 
       {/* Step 1: Verify */}
-      <div className={`space-y-3 ${step !== "verify" ? "opacity-50 pointer-events-none" : ""}`}>
-        <div className="flex items-center gap-2">
-          <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-            step !== "verify" ? "bg-[#22C55E] text-black" : "bg-[#7C6FFF] text-white"
-          }`}>
-            {step !== "verify" ? "✓" : "1"}
+      <div className="step-section" style={{ opacity: verified ? 0.5 : 1, pointerEvents: verified ? "none" : "auto" }}>
+        <div className="step-header">
+          <div className="step-num-badge" style={{ background: verified ? "var(--signal)" : "var(--card-raised)", color: verified ? "#050507" : "var(--text-dim)", border: verified ? "none" : "1px solid var(--border-strong)" }}>
+            {verified ? (
+              <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            ) : "1"}
           </div>
           <p className="text-sm font-semibold text-white">Verify you&apos;re human</p>
         </div>
 
-        {step === "verify" && (
-          <div className="space-y-3">
-            <p className="text-xs text-gray-500">
+        {!verified ? (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               Prove you&apos;re a unique human using World ID. Your identity stays private.
             </p>
             <WorldIDButton taskId={task.id} onVerified={onVerified} />
           </div>
-        )}
-
-        {step !== "verify" && (
-          <div className="flex items-center gap-2 rounded-xl bg-[#22C55E]/5 border border-[#22C55E]/10 px-3 py-2 text-xs text-[#22C55E]">
-            <span>✓</span> Verified — unique human confirmed
+        ) : (
+          <div className="verified-pill mt-2">
+            <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="var(--signal)" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Verified — unique human confirmed
           </div>
         )}
       </div>
 
-      <div className="h-px bg-white/[0.05]" />
+      <div style={{ height: 1, background: "var(--border)", margin: "16px 0" }} />
 
-      {/* Step 2: Rate & Submit */}
-      <div className={`space-y-4 ${step === "verify" ? "opacity-40 pointer-events-none" : ""}`}>
-        <div className="flex items-center gap-2">
-          <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-            step === "done" ? "bg-[#22C55E] text-black" : "bg-[#7C6FFF] text-white"
-          }`}>
-            {step === "done" ? "✓" : "2"}
+      {/* Step 2: Rate & submit */}
+      <div className="step-section" style={{ opacity: !verified ? 0.35 : 1, pointerEvents: !verified ? "none" : "auto" }}>
+        <div className="step-header">
+          <div className="step-num-badge" style={{ background: "var(--card-raised)", color: "var(--text-dim)", border: "1px solid var(--border-strong)" }}>
+            2
           </div>
           <p className="text-sm font-semibold text-white">Rate &amp; submit</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           <div>
-            <p className="label">Your Rating</p>
+            <div className="c-label">Your Rating</div>
             <StarRating value={rating} onChange={setRating} size="lg" />
             {rating > 0 && (
-              <p className="text-xs text-gray-600 mt-1">
-                {["", "Poor", "Below average", "Average", "Good", "Excellent"][rating]}
+              <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                {RATING_LABELS[rating]}
               </p>
             )}
           </div>
 
           <div>
-            <label className="label">Feedback <span className="text-gray-700 normal-case tracking-normal font-normal">(required)</span></label>
+            <label className="c-label">
+              Feedback <span style={{ color: "var(--text-muted)", textTransform: "none", letterSpacing: "normal", fontWeight: 400 }}>(required)</span>
+            </label>
             <textarea
               required
               rows={4}
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
-              placeholder="Describe what you evaluated, any issues found, and specific suggestions..."
-              className="input-dark resize-none"
+              placeholder="Describe what you evaluated, any issues found, and specific suggestions…"
+              className="c-input resize-none"
+              style={{ fontFamily: "var(--font-body)" }}
             />
           </div>
 
           <button
             type="submit"
-            disabled={step !== "rate" || rating === 0 || !feedback.trim() || step === "submitting" as unknown as boolean}
-            className="btn-primary w-full justify-center"
+            disabled={step !== "rate" || rating === 0 || !feedback.trim()}
+            className="c-btn-primary w-full justify-center py-3"
           >
             {step === "submitting" ? (
-              <>
-                <span className="animate-spin">⟳</span> Submitting…
-              </>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" style={{ animation: "iris-spin 1s linear infinite" }}>
+                  <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeDasharray="20 14" />
+                </svg>
+                Submitting…
+              </span>
             ) : (
               <>Submit &amp; Earn {task.bounty_wld} WLD</>
             )}
           </button>
         </form>
       </div>
+
+      <style>{`
+        .form-card {
+          background: var(--card);
+          border: 1px solid var(--border);
+          border-radius: 20px;
+          padding: 24px;
+        }
+        .step-header {
+          display: flex; align-items: center; gap: 10px;
+        }
+        .step-num-badge {
+          width: 24px; height: 24px; border-radius: 50%;
+          display: flex; align-items: center; justify-content: center;
+          font-size: 11px; font-weight: 700; flex-shrink: 0;
+          transition: background 0.2s;
+        }
+        .step-section { }
+        .verified-pill {
+          display: inline-flex; align-items: center; gap: 6px;
+          font-size: 11px; font-weight: 600;
+          color: var(--signal);
+          background: var(--signal-dim);
+          border: 1px solid var(--signal-border);
+          border-radius: 100px; padding: 4px 10px;
+        }
+      `}</style>
     </div>
   );
 }

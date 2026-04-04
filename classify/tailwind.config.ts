@@ -7,14 +7,22 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ["var(--font-display)", "Bebas Neue", "cursive"],
+        body: ["var(--font-body)", "DM Sans", "sans-serif"],
+        mono: ["var(--font-mono)", "JetBrains Mono", "monospace"],
+      },
       colors: {
-        surface: "#0F0F13",
-        card: "#16161D",
-        border: "rgba(255,255,255,0.08)",
-        accent: "#7C6FFF",
-        "accent-dim": "#4A45B5",
-        wld: "#F5C842",
-        verified: "#22C55E",
+        signal: "#00FF87",
+        gold: "#F0B429",
+        bg: "#050507",
+        surface: "#0B0C15",
+        card: "#0F1019",
+      },
+      animation: {
+        "iris-spin": "iris-spin 20s linear infinite",
+        "scan-pulse": "scan-pulse 3s ease-in-out infinite",
+        "ticker": "ticker 30s linear infinite",
       },
     },
   },

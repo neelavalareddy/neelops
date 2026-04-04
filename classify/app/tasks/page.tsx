@@ -17,7 +17,6 @@ export default async function TasksPage() {
     .from("responses")
     .select("task_id, rating") as { data: Pick<Response, "task_id" | "rating">[] | null };
 
-  // Build per-task stats
   const stats: Record<string, { count: number; avg: number | null }> = {};
   for (const r of responses ?? []) {
     if (!stats[r.task_id]) stats[r.task_id] = { count: 0, avg: null };
@@ -37,44 +36,54 @@ export default async function TasksPage() {
   return (
     <>
       <NavBar />
-      <main className="mx-auto max-w-6xl px-4 py-10 space-y-12">
+      <main className="mx-auto max-w-6xl px-5 py-12 space-y-10">
+
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 animate-fade-up">
           <div>
-            <div className="section-pill mb-3">Live Marketplace</div>
-            <h1 className="text-4xl font-black text-white tracking-tight">Open Tasks</h1>
-            <p className="text-gray-500 text-sm mt-2">
-              Verify with World ID once per task, then rate and submit feedback to earn WLD.
+            <div className="c-pill mb-3">Live Marketplace</div>
+            <h1 className="font-display text-5xl sm:text-6xl text-white tracking-wider leading-none mb-2">
+              OPEN TASKS
+            </h1>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              Verify with World ID once per task — rate, submit, earn WLD.
             </p>
           </div>
-          <div className="flex items-center gap-3 text-sm text-gray-500 shrink-0">
-            <span className="verified-badge">
+          <div className="shrink-0">
+            <span className="c-badge-signal" style={{ fontSize: "0.8rem", padding: "8px 16px" }}>
+              <span className="c-live-dot" />
               {openTasks.length} open
             </span>
           </div>
         </div>
 
         {/* World ID explainer */}
-        <div className="glass-card p-5 flex items-start gap-4">
-          <div className="w-10 h-10 rounded-xl bg-[#22C55E]/10 border border-[#22C55E]/20 flex items-center justify-center text-xl shrink-0">
-            🌐
+        <div className="animate-fade-up animate-delay-100" style={{
+          display: "flex", alignItems: "flex-start", gap: 16,
+          background: "var(--card)", border: "1px solid var(--border)",
+          borderRadius: 16, padding: "18px 20px"
+        }}>
+          <div style={{ position: "relative", flexShrink: 0, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }} className="iris-container">
+            <div className="iris-ring iris-ring-1" />
+            <div className="iris-ring iris-ring-2" />
+            <div className="iris-ring iris-ring-3" />
+            <div className="iris-core" />
           </div>
           <div>
-            <p className="font-semibold text-white text-sm">How verification works</p>
-            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-              Each task requires a World ID proof before you can submit feedback. This ensures every response
-              comes from a unique, real human — and prevents you from submitting twice on the same task.
-              Your identity stays private; only a nullifier hash is stored.
+            <p className="text-sm font-semibold text-white mb-0.5">How verification works</p>
+            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Each task requires a World ID proof before you can submit. This ensures every response is from a unique
+              real human and prevents double-submitting. Your identity stays private — only a nullifier hash is stored.
             </p>
           </div>
         </div>
 
         {/* Open tasks */}
         {openTasks.length === 0 ? (
-          <div className="rounded-2xl border-2 border-dashed border-white/[0.06] p-16 text-center">
+          <div style={{ borderRadius: 20, border: "2px dashed var(--border)", padding: "64px 24px", textAlign: "center" }}>
             <p className="text-4xl mb-3">📭</p>
-            <p className="font-bold text-white mb-1">No open tasks right now</p>
-            <p className="text-sm text-gray-500">Check back soon, or post a task yourself.</p>
+            <p className="font-display text-2xl text-white tracking-wider mb-1">NO OPEN TASKS</p>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Check back soon, or post a task yourself.</p>
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -92,8 +101,10 @@ export default async function TasksPage() {
         {/* Closed tasks */}
         {closedTasks.length > 0 && (
           <section>
-            <h2 className="text-lg font-bold text-gray-500 mb-4">Closed Tasks</h2>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 opacity-60">
+            <p className="text-xs uppercase tracking-widest mb-4" style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+              Closed Tasks
+            </p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 opacity-50">
               {closedTasks.map((task) => (
                 <TaskCard
                   key={task.id}

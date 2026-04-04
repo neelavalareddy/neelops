@@ -7,25 +7,49 @@ interface Props {
   size?: "sm" | "md" | "lg";
 }
 
-const SIZES = { sm: "text-lg", md: "text-2xl", lg: "text-4xl" };
+const SIZE_PX = { sm: 14, md: 20, lg: 28 };
 
 export default function StarRating({ value, onChange, readonly = false, size = "md" }: Props) {
+  const px = SIZE_PX[size];
+
   return (
-    <div className="flex items-center gap-1">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <button
-          key={star}
-          type="button"
-          disabled={readonly}
-          onClick={() => onChange?.(star)}
-          className={`${SIZES[size]} transition-all ${
-            readonly ? "cursor-default" : "cursor-pointer hover:scale-110"
-          }`}
-          aria-label={`${star} star`}
-        >
-          <span className={value >= star ? "text-yellow-400" : "text-gray-700"}>★</span>
-        </button>
-      ))}
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((star) => {
+        const filled = value >= star;
+        return (
+          <button
+            key={star}
+            type="button"
+            disabled={readonly}
+            onClick={() => onChange?.(star)}
+            aria-label={`${star} star`}
+            style={{
+              width: px + 4,
+              height: px + 4,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: readonly ? "default" : "pointer",
+              background: "none",
+              border: "none",
+              padding: 0,
+              transition: "transform 0.12s",
+            }}
+            onMouseEnter={!readonly ? (e) => { (e.currentTarget as HTMLElement).style.transform = "scale(1.2)"; } : undefined}
+            onMouseLeave={!readonly ? (e) => { (e.currentTarget as HTMLElement).style.transform = "scale(1)"; } : undefined}
+          >
+            <svg width={px} height={px} viewBox="0 0 16 16" fill="none">
+              <polygon
+                points="8,1 9.8,6.2 15.4,6.2 10.9,9.4 12.7,14.6 8,11.4 3.3,14.6 5.1,9.4 0.6,6.2 6.2,6.2"
+                fill={filled ? "var(--gold)" : "none"}
+                stroke={filled ? "var(--gold)" : "rgba(255,255,255,0.12)"}
+                strokeWidth="1"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        );
+      })}
     </div>
   );
 }
