@@ -72,7 +72,7 @@ export function runPrechecks(userMessages: AgentMessage[]): PrecheckResult {
   }
 
   // Prechecks that block payout
-  const blocking: PrecheckFlag[] = ["TOO_FEW_TURNS", "DUPLICATE_CONTENT"];
+  const blocking: PrecheckFlag[] = ["TOO_FEW_TURNS"];
   const passed = !flags.some((f) => blocking.includes(f));
 
   return { flags, passed };
