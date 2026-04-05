@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { PUBLIC_AGENT_SELECT } from "@/lib/agents";
-import { resolveRequestWorkerNullifier } from "@/lib/auth/requestUser";
+import { getRequestSessionUser } from "@/lib/auth/requestUser";
 import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
 import type { Agent, AgentMessage, AgentSession } from "@/types/agents";
 
@@ -8,23 +8,19 @@ interface Ctx {
   params: { id: string };
 }
 
-export async function POST(request: Request, { params }: Ctx) {
+export async function POST(_request: Request, { params }: Ctx) {
   try {
     if (!hasSupabaseServiceEnv()) {
       return NextResponse.json({ error: "Supabase service role is not configured." }, { status: 503 });
     }
 
     const { id: agent_id } = params;
-    const { nullifier_hash } = await request.json();
-    const identity = resolveRequestWorkerNullifier(
-      typeof nullifier_hash === "string" ? nullifier_hash : null
-    );
-    if (!identity.nullifierHash) {
-      return NextResponse.json(
-        { error: identity.error ?? "Worker identity is required." },
-        { status: identity.status ?? 400 }
-      );
+
+    const user = getRequestSessionUser();
+    if (!user) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     }
+    const hash = user.world_id_nullifier_hash;
 
     const supabase = createServiceClient();
 
@@ -39,8 +35,7 @@ export async function POST(request: Request, { params }: Ctx) {
       return NextResponse.json({ error: "This agent is not accepting sessions." }, { status: 400 });
     }
 
-    const hash = identity.nullifierHash;
-
+    // Resume existing active session if one exists
     const { data: sessionRows } = await supabase
       .from("agent_sessions")
       .select("*")
@@ -59,10 +54,25 @@ export async function POST(request: Request, { params }: Ctx) {
         .insert({ agent_id, nullifier_hash: hash })
         .select()
         .single() as { data: AgentSession | null; error: unknown };
+
       if (cErr || !created) {
-        return NextResponse.json({ error: "Could not start session." }, { status: 500 });
+        // Concurrent insert race — retry the select
+        const { data: raceRows } = await supabase
+          .from("agent_sessions")
+          .select("*")
+          .eq("agent_id", agent_id)
+          .eq("nullifier_hash", hash)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(1) as { data: AgentSession[] | null };
+        const raceSession = raceRows?.[0] ?? null;
+        if (!raceSession) {
+          return NextResponse.json({ error: "Could not start session." }, { status: 500 });
+        }
+        session = raceSession;
+      } else {
+        session = created;
       }
-      session = created;
     }
 
     const { data: messages } = await supabase

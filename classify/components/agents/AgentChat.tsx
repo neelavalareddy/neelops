@@ -1,15 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import SessionScoreCard from "@/components/evaluation/SessionScoreCard";
-import { persistWorkerNullifier, getWorkerNullifier } from "@/lib/workerIdentity";
 import type { Agent, AgentMessage, AgentSession, SessionEvaluation } from "@/types/agents";
-
-const WorldIDButton = dynamic(() => import("@/components/WorldIDButton"), {
-  ssr: false,
-});
 
 type Msg = AgentMessage & {
   evaluation?: {
@@ -20,13 +14,7 @@ type Msg = AgentMessage & {
   } | null;
 };
 
-interface Props {
-  agent: Agent;
-  initialNullifierHash?: string | null;
-}
-
-export default function AgentChat({ agent, initialNullifierHash = null }: Props) {
-  const [nullifier, setNullifier] = useState<string | null>(initialNullifierHash);
+export default function AgentChat({ agent }: { agent: Agent }) {
   const [session, setSession] = useState<AgentSession | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -35,17 +23,16 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [sessionEval, setSessionEval] = useState<SessionEvaluation | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const didStart = useRef(false);
 
   const judging = statusMsg === "Evaluating your session…";
 
-  const startOrResume = useCallback(async (hash: string) => {
+  const startOrResume = useCallback(async () => {
+    if (didStart.current) return;
+    didStart.current = true;
     setLoading(true);
     try {
-      const res = await fetch(`/api/agents/${agent.id}/sessions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nullifier_hash: hash }),
-      });
+      const res = await fetch(`/api/agents/${agent.id}/sessions`, { method: "POST" });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
         setStatusMsg(typeof j?.error === "string" ? j.error : "Could not open session.");
@@ -61,80 +48,38 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
   }, [agent.id]);
 
   useEffect(() => {
-    let active = true;
-
-    async function hydrate() {
-      const localHash = initialNullifierHash ?? getWorkerNullifier();
-      if (localHash) {
-        persistWorkerNullifier(localHash);
-        setNullifier(localHash);
-        await startOrResume(localHash);
-        return;
-      }
-
-      try {
-        const res = await fetch("/api/auth/me", { credentials: "include" });
-        const json = await res.json().catch(() => ({}));
-        if (!active) return;
-
-        const sessionHash =
-          typeof json?.user?.world_id_nullifier_hash === "string"
-            ? json.user.world_id_nullifier_hash
-            : null;
-
-        if (sessionHash) {
-          persistWorkerNullifier(sessionHash);
-          setNullifier(sessionHash);
-          await startOrResume(sessionHash);
-        } else {
-          setBooting(false);
-        }
-      } catch {
-        if (!active) return;
-        setBooting(false);
-      }
-    }
-
-    hydrate();
-    return () => {
-      active = false;
-    };
-  }, [initialNullifierHash, startOrResume]);
+    startOrResume();
+  }, [startOrResume]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  function onVerified(hash: string) {
-    persistWorkerNullifier(hash);
-    setNullifier(hash);
-    startOrResume(hash);
-  }
-
   async function startAnotherAttempt() {
-    if (!nullifier || loading) return;
+    if (loading) return;
+    didStart.current = false;
     setSession(null);
     setMessages([]);
     setSessionEval(null);
     setStatusMsg(null);
-    await startOrResume(nullifier);
+    setBooting(true);
+    await startOrResume();
   }
 
   async function send() {
     const t = input.trim();
-    if (!t || !session || !nullifier || loading) return;
+    if (!t || !session || loading) return;
     setLoading(true);
     setInput("");
     try {
       const res = await fetch(`/api/agents/${agent.id}/sessions/${session.id}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nullifier_hash: nullifier, content: t }),
+        body: JSON.stringify({ content: t }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
         setStatusMsg(typeof j?.error === "string" ? j.error : "Send failed.");
-        setLoading(false);
         return;
       }
       const u = j.userMessage as Msg | undefined;
@@ -152,13 +97,11 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
   }
 
   async function submitForEvaluation() {
-    if (!session || !nullifier || loading) return;
+    if (!session || loading) return;
     setStatusMsg("Evaluating your session…");
     try {
       const res = await fetch(`/api/agents/${agent.id}/sessions/${session.id}/complete`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nullifier_hash: nullifier }),
       });
       const j = await res.json().catch(() => ({}));
       if (j.evaluation) setSessionEval(j.evaluation as SessionEvaluation);
@@ -189,14 +132,10 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
     return <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-3)", padding: "16px 0" }}>Loading session…</div>;
   }
 
-  if (!nullifier || !session) {
+  if (!session) {
     return (
-      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "28px 24px" }}>
-        <div style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-2)", lineHeight: 1.65, marginBottom: 20 }}>
-          Verify once with World ID to start. The judge scores your messages in real-time for relevance,
-          rule compliance, and human authenticity. You can retry the same agent multiple times to improve your score or surface more issues.
-        </div>
-        <WorldIDButton taskId={agent.id} onVerified={onVerified} />
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 8, padding: "12px 16px", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-2)" }}>
+        {statusMsg ?? "Starting session…"}
       </div>
     );
   }
@@ -207,7 +146,6 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {/* Turn indicator */}
       {session.status === "active" && (
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", gap: 6 }}>
@@ -222,17 +160,7 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
         </div>
       )}
 
-      {/* Chat window */}
-      <div style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        maxHeight: "min(540px, 65vh)",
-      }}>
-        {/* Messages */}
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "min(540px, 65vh)" }}>
         <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: 12 }}>
           {messages.length === 0 && (
             <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-3)", padding: "8px 0" }}>
@@ -253,7 +181,6 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
                 </div>
                 <p style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text)", lineHeight: 1.55, margin: 0, whiteSpace: "pre-wrap" }}>{m.content}</p>
               </div>
-              {/* Per-message eval chips */}
               {m.role === "user" && m.evaluation && (
                 <div style={{ display: "flex", gap: 5, marginTop: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, padding: "2px 7px", borderRadius: 3, background: "rgba(255,255,255,0.05)", color: "var(--text-3)" }}>
@@ -282,7 +209,6 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
         {session.status === "active" && (
           <div style={{ borderTop: "1px solid var(--border)", padding: "12px 14px", display: "flex", gap: 8 }}>
             <input
@@ -294,20 +220,13 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
               style={{ flex: 1, fontSize: 13 }}
               disabled={loading}
             />
-            <button
-              type="button"
-              onClick={send}
-              disabled={loading || !input.trim()}
-              className="c-btn-primary"
-              style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0 }}
-            >
+            <button type="button" onClick={send} disabled={loading || !input.trim()} className="c-btn-primary" style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0 }}>
               Send
             </button>
           </div>
         )}
       </div>
 
-      {/* Status message */}
       {statusMsg && (
         <div style={{
           background: judging ? "var(--amber-dim)" : "var(--surface)",
@@ -322,34 +241,21 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
         </div>
       )}
 
-      {/* Submit for judgment */}
       {session.status === "active" && (
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button
-            type="button"
-            onClick={submitForEvaluation}
-            disabled={judging || loading || !canSubmit}
-            className="c-btn-primary"
-            style={{ padding: "10px 22px", fontSize: 13 }}
-          >
+          <button type="button" onClick={submitForEvaluation} disabled={judging || loading || !canSubmit} className="c-btn-primary" style={{ padding: "10px 22px", fontSize: 13 }}>
             {judging ? "Evaluating…" : "Submit for Judgment"}
           </button>
-          {!canSubmit && (
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-3)" }}>
-              Need ≥ 3 messages first
-            </span>
-          )}
+          {!canSubmit && <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-3)" }}>Need ≥ 3 messages first</span>}
         </div>
       )}
 
-      {/* Verdict card */}
       {isFinalized && sessionEval && (
         <div className="animate-verdict">
           <SessionScoreCard evaluation={sessionEval} bounty_wld={agent.bounty_wld} payout_wld={session.payout_wld} />
         </div>
       )}
 
-      {/* Finalized without fresh eval data */}
       {isFinalized && !sessionEval && session.payout_note && (
         <div style={{
           background: session.status === "eligible" ? "var(--pass-dim)" : "var(--fail-dim)",
@@ -362,16 +268,9 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
         </div>
       )}
 
-      {/* Post-session nav */}
       {isFinalized && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
-          <button
-            type="button"
-            onClick={startAnotherAttempt}
-            className="c-btn-primary"
-            style={{ padding: "8px 16px", fontSize: 12 }}
-            disabled={loading || !nullifier}
-          >
+          <button type="button" onClick={startAnotherAttempt} className="c-btn-primary" style={{ padding: "8px 16px", fontSize: 12 }} disabled={loading}>
             Start another attempt
           </button>
           <Link href="/agents" className="c-btn-ghost" style={{ padding: "8px 16px", fontSize: 12 }}>Other agents</Link>

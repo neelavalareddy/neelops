@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { PUBLIC_AGENT_SELECT } from "@/lib/agents";
-import { resolveRequestWorkerNullifier } from "@/lib/auth/requestUser";
+import { getRequestSessionUser } from "@/lib/auth/requestUser";
 import { generateCompanyAgentReply } from "@/lib/ai/companyAgentReply";
 import { evaluateAgentUserMessage } from "@/lib/ai/classifyAgentEval";
 import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
@@ -24,18 +24,13 @@ export async function POST(request: Request, { params }: Ctx) {
     }
 
     const { id: agent_id, sessionId: session_id } = params;
-    const { nullifier_hash, content } = await request.json() as {
-      nullifier_hash?: string;
-      content?: string;
-    };
 
-    const identity = resolveRequestWorkerNullifier(nullifier_hash);
-    if (!identity.nullifierHash) {
-      return NextResponse.json(
-        { error: identity.error ?? "Worker identity is required." },
-        { status: identity.status ?? 400 }
-      );
+    const user = getRequestSessionUser();
+    if (!user) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     }
+
+    const { content } = await request.json() as { content?: string };
     const text = typeof content === "string" ? content.trim() : "";
     if (!text || text.length > 12000) {
       return NextResponse.json({ error: "content is required (max 12000 chars)." }, { status: 400 });
@@ -53,7 +48,7 @@ export async function POST(request: Request, { params }: Ctx) {
     if (session.agent_id !== agent_id) {
       return NextResponse.json({ error: "Session mismatch." }, { status: 400 });
     }
-    if (session.nullifier_hash !== identity.nullifierHash) {
+    if (session.nullifier_hash !== user.world_id_nullifier_hash) {
       return NextResponse.json({ error: "Not your session." }, { status: 403 });
     }
     if (session.status !== "active") {
@@ -78,7 +73,6 @@ export async function POST(request: Request, { params }: Ctx) {
 
     const priorList = prior ?? [];
     const transcript = transcriptBefore(priorList, priorList.length);
-
     const evalResult = await evaluateAgentUserMessage(agent.objective, agent.rules, transcript, text);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,10 +94,7 @@ export async function POST(request: Request, { params }: Ctx) {
       rules_compliant: evalResult.rules_compliant,
       rationale: evalResult.rationale || null,
     });
-
-    if (evErr) {
-      console.error("[eval insert]", evErr);
-    }
+    if (evErr) console.error("[eval insert]", evErr);
 
     const historyForAgent: Array<{ role: "user" | "assistant"; content: string }> = [
       ...priorList.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
@@ -136,11 +127,7 @@ export async function POST(request: Request, { params }: Ctx) {
       );
     }
 
-    return NextResponse.json({
-      userMessage: userRow,
-      evaluation: evalResult,
-      assistantMessage: asstRow,
-    });
+    return NextResponse.json({ userMessage: userRow, evaluation: evalResult, assistantMessage: asstRow });
   } catch (e) {
     console.error("[agent messages POST]", e);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });

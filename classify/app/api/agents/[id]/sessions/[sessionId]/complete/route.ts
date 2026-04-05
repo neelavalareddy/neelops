@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveRequestWorkerNullifier } from "@/lib/auth/requestUser";
+import { getRequestSessionUser } from "@/lib/auth/requestUser";
 import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
 import { computeSessionReward, judgeSession } from "@/lib/ai/judge/engine";
 import type { Agent, AgentMessage, AgentSession } from "@/types/agents";
@@ -8,21 +8,17 @@ interface Ctx {
   params: { id: string; sessionId: string };
 }
 
-export async function POST(request: Request, { params }: Ctx) {
+export async function POST(_request: Request, { params }: Ctx) {
   try {
     if (!hasSupabaseServiceEnv()) {
       return NextResponse.json({ error: "Supabase service role is not configured." }, { status: 503 });
     }
 
     const { id: agent_id, sessionId: session_id } = params;
-    const { nullifier_hash } = (await request.json()) as { nullifier_hash?: string };
 
-    const identity = resolveRequestWorkerNullifier(nullifier_hash);
-    if (!identity.nullifierHash) {
-      return NextResponse.json(
-        { error: identity.error ?? "Worker identity is required." },
-        { status: identity.status ?? 400 }
-      );
+    const user = getRequestSessionUser();
+    if (!user) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
     }
 
     const supabase = createServiceClient();
@@ -36,7 +32,7 @@ export async function POST(request: Request, { params }: Ctx) {
     if (sErr || !session) return NextResponse.json({ error: "Session not found." }, { status: 404 });
     if (session.agent_id !== agent_id)
       return NextResponse.json({ error: "Session mismatch." }, { status: 400 });
-    if (session.nullifier_hash !== identity.nullifierHash)
+    if (session.nullifier_hash !== user.world_id_nullifier_hash)
       return NextResponse.json({ error: "Not your session." }, { status: 403 });
     if (session.status !== "active") {
       return NextResponse.json(
@@ -70,7 +66,6 @@ export async function POST(request: Request, { params }: Ctx) {
       ? `Passed Classify judge (score ${(result.overall_score * 10).toFixed(1)}/10) — earned ${payout_wld.toFixed(2)} WLD for depth, coverage, and problem discovery.`
       : `Rejected: ${result.overall_assessment?.slice(0, 200) ?? "Did not meet passing criteria."}`;
 
-    // Persist evaluation and update session status in parallel
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await Promise.all([
       (supabase as any).from("session_evaluations").upsert({
@@ -106,7 +101,6 @@ export async function POST(request: Request, { params }: Ctx) {
         .eq("id", session_id),
     ]);
 
-    // Update agent-level stats after session is finalized
     if (result.passed) {
       const { data: eligibleSessions } = await supabase
         .from("agent_sessions")
@@ -116,14 +110,13 @@ export async function POST(request: Request, { params }: Ctx) {
 
       const passedSessionIds = (eligibleSessions ?? []).map((s: { id: string }) => s.id);
       const completedCount = passedSessionIds.length;
-
       let newAvgScore = result.overall_score;
+
       if (passedSessionIds.length > 0) {
         const { data: scores } = await supabase
           .from("session_evaluations")
           .select("overall_score")
           .in("session_id", passedSessionIds);
-
         const allScores = (scores ?? []).map((r: { overall_score: number }) => Number(r.overall_score));
         if (allScores.length > 0) {
           newAvgScore = allScores.reduce((a, b) => a + b, 0) / allScores.length;
@@ -133,10 +126,7 @@ export async function POST(request: Request, { params }: Ctx) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
         .from("agents")
-        .update({
-          tests_completed: completedCount,
-          avg_score: Math.round(newAvgScore * 1000) / 1000,
-        })
+        .update({ tests_completed: completedCount, avg_score: Math.round(newAvgScore * 1000) / 1000 })
         .eq("id", agent_id);
     }
 

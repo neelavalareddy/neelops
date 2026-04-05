@@ -5,7 +5,6 @@ import { createClient, hasSupabaseEnv } from "@/lib/supabase/server";
 import MissingSupabaseConfig from "@/components/MissingSupabaseConfig";
 import NavBar from "@/components/NavBar";
 import AgentChat from "@/components/agents/AgentChat";
-import { getRequestSessionUser } from "@/lib/auth/requestUser";
 import type { Agent } from "@/types/agents";
 
 export const revalidate = 0;
@@ -16,7 +15,6 @@ interface Props {
 
 export default async function AgentDetailPage({ params }: Props) {
   const { id } = await params;
-  const currentUser = getRequestSessionUser();
 
   if (!hasSupabaseEnv()) {
     return (<><NavBar /><MissingSupabaseConfig /></>);
@@ -118,10 +116,7 @@ export default async function AgentDetailPage({ params }: Props) {
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 14 }}>
             Live Session — min 3 turns required
           </div>
-          <AgentChat
-            agent={agent}
-            initialNullifierHash={currentUser?.role === "worker" ? currentUser.world_id_nullifier_hash : null}
-          />
+          <AgentChat agent={agent} />
         </div>
         <style>{`
           @media (max-width: 720px) {

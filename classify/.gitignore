@@ -13,6 +13,9 @@ out/
 .env.production
 .env*.local
 
+# Supabase CLI
+supabase/.temp/
+
 # local agent / IDE tooling (do not commit)
 .agents/
 .codex/
