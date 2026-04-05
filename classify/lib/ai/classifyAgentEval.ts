@@ -23,7 +23,7 @@ export async function evaluateAgentUserMessage(
       relevance_1_5: 3,
       ai_likelihood_0_1: 0.5,
       rules_compliant: true,
-      rationale: "Evaluator offline — set AI_PROVIDER=local and LOCAL_LLM_*.",
+      rationale: "Evaluator offline — configure Anthropic, Groq, or another OpenAI-compatible model endpoint.",
     };
   }
 

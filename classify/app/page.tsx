@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import styles from "./page.module.css";
-import BrandLogo from "@/components/BrandLogo";
+import NavBar from "@/components/NavBar";
 
 const FLOW_STEPS = [
   {
@@ -128,33 +128,7 @@ const LIVE_ENTRY_POINTS = [
 export default function LandingPage() {
   return (
     <div className={styles.page}>
-      <header className={styles.header}>
-        <div className={styles.shell}>
-          <div className={styles.headerInner}>
-            <Link href="/" className={styles.brand}>
-              <div className={styles.brandMark}>
-                <BrandLogo className={styles.brandLogo} size={34} />
-              </div>
-              <div>
-                <p className={styles.brandName}>Classify</p>
-                <p className={styles.brandTag}>Catch hallucinations pre-prod</p>
-              </div>
-            </Link>
-
-            <nav className={styles.nav}>
-              <Link href="/agents" className={styles.navLink}>
-                Browse Agents
-              </Link>
-              <Link href="/tasks" className={styles.navLink}>
-                Tasks
-              </Link>
-              <Link href="/agents/new" className="c-btn-primary">
-                Connect Agent
-              </Link>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <NavBar />
 
       <main>
         <section className={styles.heroSection}>

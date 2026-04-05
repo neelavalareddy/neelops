@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import LinkWorldWalletButton from "@/components/LinkWorldWalletButton";
 import WorldIDButton from "@/components/WorldIDButton";
 import StarRating from "@/components/StarRating";
 import { persistWorkerNullifier } from "@/lib/workerIdentity";
@@ -11,18 +12,54 @@ type Step = "verify" | "rate" | "submitting" | "done" | "error";
 
 interface Props {
   task: Task;
+  initialNullifierHash?: string | null;
 }
 
 const RATING_LABELS = ["", "Poor", "Below average", "Average", "Good", "Excellent"];
 
-export default function TaskFeedbackForm({ task }: Props) {
+export default function TaskFeedbackForm({ task, initialNullifierHash = null }: Props) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>("verify");
-  const [nullifierHash, setNullifierHash] = useState("");
+  const [step, setStep] = useState<Step>(initialNullifierHash ? "rate" : "verify");
+  const [nullifierHash, setNullifierHash] = useState(initialNullifierHash ?? "");
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [paymentsConfigured, setPaymentsConfigured] = useState(false);
   const [rating, setRating] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [payoutTxHash, setPayoutTxHash] = useState<string | null>(null);
   const rateStartedAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!initialNullifierHash) return;
+    persistWorkerNullifier(initialNullifierHash);
+    if (rateStartedAtRef.current == null) {
+      rateStartedAtRef.current = Date.now();
+    }
+  }, [initialNullifierHash]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadWallet() {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const json = await res.json().catch(() => ({}));
+        if (!active) return;
+        setWalletAddress(typeof json?.user?.wallet_address === "string" ? json.user.wallet_address : null);
+        setPaymentsConfigured(Boolean(json?.world_payments_configured));
+      } catch {
+        if (active) {
+          setWalletAddress(null);
+          setPaymentsConfigured(false);
+        }
+      }
+    }
+
+    loadWallet();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   function onVerified(hash: string) {
     persistWorkerNullifier(hash);
@@ -59,6 +96,9 @@ export default function TaskFeedbackForm({ task }: Props) {
     }
 
     persistWorkerNullifier(nullifierHash);
+    const json = await res.json().catch(() => ({}));
+    setPayoutTxHash(typeof json?.payout_transaction_hash === "string" ? json.payout_transaction_hash : null);
+    setWalletAddress(typeof json?.payout_wallet_address === "string" ? json.payout_wallet_address : walletAddress);
     setStep("done");
     router.refresh();
   }
@@ -86,8 +126,17 @@ export default function TaskFeedbackForm({ task }: Props) {
 
         <p className="font-display text-3xl text-white tracking-wider mb-1">PAYMENT SENT!</p>
         <p className="text-sm mb-4" style={{ color: "var(--text-dim)" }}>
-          <span style={{ color: "var(--gold)", fontWeight: 700 }}>{task.bounty_wld} WLD</span> has been sent to your World ID wallet.
+          <span style={{ color: "var(--gold)", fontWeight: 700 }}>{task.bounty_wld} WLD</span> was sent to
+          {" "}
+          <span style={{ color: "var(--signal)", fontFamily: "var(--font-mono)" }}>
+            {walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : "your World payout rail"}
+          </span>.
         </p>
+        {!paymentsConfigured ? (
+          <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
+            This environment is presenting the World payout experience in demo mode.
+          </p>
+        ) : null}
 
         <div className="hash-display">
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>nullifier</span>
@@ -95,6 +144,14 @@ export default function TaskFeedbackForm({ task }: Props) {
             {nullifierHash.slice(0, 28)}…
           </span>
         </div>
+        {payoutTxHash ? (
+          <div className="hash-display">
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>payout tx</span>
+            <span className="text-xs font-mono break-all" style={{ color: "var(--gold)", fontFamily: "var(--font-mono)" }}>
+              {payoutTxHash}
+            </span>
+          </div>
+        ) : null}
 
         <div className="my-4 flex justify-center">
           <StarRating value={rating} readonly size="md" />
@@ -185,10 +242,33 @@ export default function TaskFeedbackForm({ task }: Props) {
           <div className="step-num-badge" style={{ background: "var(--card-raised)", color: "var(--text-dim)", border: "1px solid var(--border-strong)" }}>
             2
           </div>
-          <p className="text-sm font-semibold text-white">Rate &amp; submit</p>
+          <p className="text-sm font-semibold text-white">Link wallet, rate &amp; submit</p>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+          <div>
+            <div className="c-label">Payout Wallet</div>
+            {walletAddress ? (
+              <div className="verified-pill mt-2">
+                <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="var(--signal)" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
+              </div>
+            ) : !paymentsConfigured ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Demo mode is active, so the app will present a World payout without requiring a linked wallet first.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  Link the World wallet that should receive this payout. This works inside World App.
+                </p>
+                <LinkWorldWalletButton onLinked={setWalletAddress} />
+              </div>
+            )}
+          </div>
+
           <div>
             <div className="c-label">Your Rating</div>
             <StarRating value={rating} onChange={setRating} size="lg" />
@@ -216,7 +296,7 @@ export default function TaskFeedbackForm({ task }: Props) {
 
           <button
             type="submit"
-            disabled={step !== "rate" || rating === 0 || !feedback.trim()}
+            disabled={step !== "rate" || rating === 0 || !feedback.trim() || (paymentsConfigured && !walletAddress)}
             className="c-btn-primary w-full justify-center py-3"
           >
             {step === "submitting" ? (
@@ -227,7 +307,7 @@ export default function TaskFeedbackForm({ task }: Props) {
                 Submitting…
               </span>
             ) : (
-              <>Submit &amp; Earn {task.bounty_wld} WLD</>
+              <>Submit &amp; Receive {task.bounty_wld} WLD</>
             )}
           </button>
         </form>

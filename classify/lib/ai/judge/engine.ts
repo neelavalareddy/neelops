@@ -3,7 +3,12 @@
  * Produces session scoring, pass/fail, and hallucination flags.
  */
 
-import { callLlmSingleTurn, isLlmConfigured, getAiProvider } from "@/lib/ai/llm";
+import {
+  callLlmSingleTurn,
+  isLlmConfigured,
+  getAiProvider,
+  getOpenAiCompatibleModel,
+} from "@/lib/ai/llm";
 import { parseJsonObject } from "@/lib/ai/anthropic";
 import { runPrechecks } from "./prechecks";
 import {
@@ -24,6 +29,12 @@ export interface SessionJudgeResult {
   ai_detection_reason: string;
   objective_completion: number;
   objective_completion_reason: string;
+  conversation_depth_score: number;
+  conversation_depth_reason: string;
+  edge_case_coverage_score: number;
+  edge_case_coverage_reason: string;
+  problem_discovery_score: number;
+  problem_discovery_reason: string;
   hallucination_flags: HallucinationFlag[];
   overall_score: number;
   overall_assessment: string;
@@ -50,10 +61,13 @@ function clamp(n: unknown, lo = 0, hi = 1): number {
 
 function computeOverall(j: JudgeOutput): number {
   return (
-    j.relevance_score * 0.25 +
-    j.rule_compliance_score * 0.3 +
-    j.ai_detection_score * 0.2 +
-    j.objective_completion * 0.25
+    j.relevance_score * 0.2 +
+    j.rule_compliance_score * 0.22 +
+    j.ai_detection_score * 0.15 +
+    j.objective_completion * 0.15 +
+    j.conversation_depth_score * 0.1 +
+    j.edge_case_coverage_score * 0.08 +
+    j.problem_discovery_score * 0.1
   );
 }
 
@@ -89,10 +103,60 @@ function normalizeJudgeOutput(parsed: Partial<JudgeOutput>): JudgeOutput {
     ai_detection_reason: String(parsed.ai_detection_reason ?? "").slice(0, 400),
     objective_completion: clamp(parsed.objective_completion),
     objective_completion_reason: String(parsed.objective_completion_reason ?? "").slice(0, 400),
+    conversation_depth_score: clamp(parsed.conversation_depth_score),
+    conversation_depth_reason: String(parsed.conversation_depth_reason ?? "").slice(0, 400),
+    edge_case_coverage_score: clamp(parsed.edge_case_coverage_score),
+    edge_case_coverage_reason: String(parsed.edge_case_coverage_reason ?? "").slice(0, 400),
+    problem_discovery_score: clamp(parsed.problem_discovery_score),
+    problem_discovery_reason: String(parsed.problem_discovery_reason ?? "").slice(0, 400),
     hallucination_flags: flags,
     overall_assessment: String(parsed.overall_assessment ?? "").slice(0, 1000),
     pass: Boolean(parsed.pass),
   };
+}
+
+function applyConversationDepthGuard(
+  depthScore: number,
+  userMessages: AgentMessage[]
+): number {
+  const turns = userMessages.length;
+  const maxAllowed =
+    turns <= 2 ? 0.35 :
+    turns === 3 ? 0.6 :
+    turns === 4 ? 0.75 :
+    turns === 5 ? 0.88 :
+    1;
+
+  return Math.min(depthScore, maxAllowed);
+}
+
+function severityWeight(flags: HallucinationFlag[]): number {
+  return flags.reduce((sum, flag) => {
+    if (flag.severity === "critical") return sum + 1;
+    if (flag.severity === "high") return sum + 0.7;
+    if (flag.severity === "medium") return sum + 0.4;
+    return sum + 0.2;
+  }, 0);
+}
+
+export function computeSessionReward(baseBounty: number, result: Pick<
+  SessionJudgeResult,
+  "passed" | "overall_score" | "problem_discovery_score" | "edge_case_coverage_score" | "conversation_depth_score" | "hallucination_flags"
+>): number {
+  if (!result.passed) return 0;
+
+  const flagBonus = Math.min(0.25, severityWeight(result.hallucination_flags) * 0.05);
+  const multiplier = Math.min(
+    1.75,
+    0.55 +
+      result.overall_score * 0.6 +
+      result.problem_discovery_score * 0.25 +
+      result.edge_case_coverage_score * 0.2 +
+      result.conversation_depth_score * 0.15 +
+      flagBonus
+  );
+
+  return Math.round(baseBounty * multiplier * 10000) / 10000;
 }
 
 async function callJudge(prompt: string): Promise<JudgeOutput | null> {
@@ -124,6 +188,12 @@ export async function judgeSession(
       ai_detection_reason: "Failed pre-checks before LLM evaluation.",
       objective_completion: 0,
       objective_completion_reason: "Failed pre-checks before LLM evaluation.",
+      conversation_depth_score: 0,
+      conversation_depth_reason: "Failed pre-checks before LLM evaluation.",
+      edge_case_coverage_score: 0,
+      edge_case_coverage_reason: "Failed pre-checks before LLM evaluation.",
+      problem_discovery_score: 0,
+      problem_discovery_reason: "Failed pre-checks before LLM evaluation.",
       hallucination_flags: [],
       overall_score: 0,
       overall_assessment: `Failed pre-checks: ${precheckFlags.join(", ")}`,
@@ -145,8 +215,8 @@ export async function judgeSession(
   });
 
   const primaryModel =
-    getAiProvider() === "local"
-      ? (process.env.LOCAL_LLM_MODEL?.trim() ?? "local")
+    getAiProvider() === "openai_compatible"
+      ? (getOpenAiCompatibleModel() ?? "openai-compatible")
       : (process.env.ANTHROPIC_MODEL?.trim() || "claude-3-5-haiku-20241022");
 
   if (!isLlmConfigured()) {
@@ -159,9 +229,15 @@ export async function judgeSession(
       ai_detection_reason: "Demo mode.",
       objective_completion: 0.7,
       objective_completion_reason: "Demo mode.",
+      conversation_depth_score: 0.65,
+      conversation_depth_reason: "Demo mode.",
+      edge_case_coverage_score: 0.55,
+      edge_case_coverage_reason: "Demo mode.",
+      problem_discovery_score: 0.5,
+      problem_discovery_reason: "Demo mode.",
       hallucination_flags: [],
-      overall_score: 0.77,
-      overall_assessment: "Demo mode — set AI_PROVIDER=local and LOCAL_LLM_* for a live evaluation.",
+      overall_score: 0.726,
+      overall_assessment: "Demo mode — configure Anthropic, Groq, or another OpenAI-compatible model endpoint for live judging.",
       passed: true,
       judge_model: "demo",
       judge_reasoning: "Demo mode.",
@@ -183,6 +259,12 @@ export async function judgeSession(
       ai_detection_reason: "Judge error.",
       objective_completion: 0,
       objective_completion_reason: "Judge error.",
+      conversation_depth_score: 0,
+      conversation_depth_reason: "Judge error.",
+      edge_case_coverage_score: 0,
+      edge_case_coverage_reason: "Judge error.",
+      problem_discovery_score: 0,
+      problem_discovery_reason: "Judge error.",
       hallucination_flags: [],
       overall_score: 0,
       overall_assessment: "Judge encountered an error. Session marked as failed for safety.",
@@ -195,8 +277,11 @@ export async function judgeSession(
     };
   }
 
-  const finalResult = primary;
-  const finalPassed = doesPass(primary);
+  const finalResult = {
+    ...primary,
+    conversation_depth_score: applyConversationDepthGuard(primary.conversation_depth_score, userMessages),
+  };
+  const finalPassed = doesPass(finalResult);
 
   const overall = computeOverall(finalResult);
 
@@ -209,6 +294,12 @@ export async function judgeSession(
     ai_detection_reason: finalResult.ai_detection_reason,
     objective_completion: Math.round(finalResult.objective_completion * 1000) / 1000,
     objective_completion_reason: finalResult.objective_completion_reason,
+    conversation_depth_score: Math.round(finalResult.conversation_depth_score * 1000) / 1000,
+    conversation_depth_reason: finalResult.conversation_depth_reason,
+    edge_case_coverage_score: Math.round(finalResult.edge_case_coverage_score * 1000) / 1000,
+    edge_case_coverage_reason: finalResult.edge_case_coverage_reason,
+    problem_discovery_score: Math.round(finalResult.problem_discovery_score * 1000) / 1000,
+    problem_discovery_reason: finalResult.problem_discovery_reason,
     hallucination_flags: finalResult.hallucination_flags,
     overall_score: Math.round(overall * 1000) / 1000,
     overall_assessment: finalResult.overall_assessment,

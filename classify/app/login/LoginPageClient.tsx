@@ -53,6 +53,7 @@ export default function LoginPageClient({ nextPath }: Props) {
       <NavBar />
       <main style={{ maxWidth: 1080, margin: "0 auto", padding: "48px 24px 88px" }}>
         <section
+          className="login-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 1.1fr) minmax(320px, 0.9fr)",
@@ -98,6 +99,7 @@ export default function LoginPageClient({ nextPath }: Props) {
             </p>
 
             <div
+              className="login-triplet"
               style={{
                 marginTop: 24,
                 display: "grid",
@@ -226,6 +228,18 @@ export default function LoginPageClient({ nextPath }: Props) {
             </section>
           </div>
         </section>
+        <style>{`
+          @media (max-width: 900px) {
+            .login-grid {
+              grid-template-columns: 1fr !important;
+            }
+          }
+          @media (max-width: 720px) {
+            .login-triplet {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}</style>
       </main>
     </>
   );

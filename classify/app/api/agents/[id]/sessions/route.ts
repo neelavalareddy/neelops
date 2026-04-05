@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PUBLIC_AGENT_SELECT } from "@/lib/agents";
+import { resolveRequestWorkerNullifier } from "@/lib/auth/requestUser";
 import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
 import type { Agent, AgentMessage, AgentSession } from "@/types/agents";
 
@@ -15,8 +16,14 @@ export async function POST(request: Request, { params }: Ctx) {
 
     const { id: agent_id } = params;
     const { nullifier_hash } = await request.json();
-    if (!nullifier_hash || typeof nullifier_hash !== "string" || !nullifier_hash.trim()) {
-      return NextResponse.json({ error: "nullifier_hash is required." }, { status: 400 });
+    const identity = resolveRequestWorkerNullifier(
+      typeof nullifier_hash === "string" ? nullifier_hash : null
+    );
+    if (!identity.nullifierHash) {
+      return NextResponse.json(
+        { error: identity.error ?? "Worker identity is required." },
+        { status: identity.status ?? 400 }
+      );
     }
 
     const supabase = createServiceClient();
@@ -32,13 +39,15 @@ export async function POST(request: Request, { params }: Ctx) {
       return NextResponse.json({ error: "This agent is not accepting sessions." }, { status: 400 });
     }
 
-    const hash = nullifier_hash.trim();
+    const hash = identity.nullifierHash;
 
     const { data: sessionRows } = await supabase
       .from("agent_sessions")
       .select("*")
       .eq("agent_id", agent_id)
       .eq("nullifier_hash", hash)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
       .limit(1);
     const existing = (sessionRows as AgentSession[] | null)?.[0] ?? null;
 

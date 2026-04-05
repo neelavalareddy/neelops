@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { MiniKit } from "@worldcoin/minikit-js";
+import { Tokens } from "@worldcoin/minikit-js/commands";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NavBar from "@/components/NavBar";
+import { DEFAULT_TASK_MAX_RESPONSES } from "@/lib/world/constants";
+import { createSimulatedPaymentReference } from "@/lib/world/payments";
+import type { PayResult } from "@worldcoin/minikit-js/commands";
 
 const BOUNTY_PRESETS = [0.25, 0.5, 1.0, 2.0];
+const RESPONSE_CAP_PRESETS = [5, 10, 25];
 
 export default function PostTaskPage() {
   const router = useRouter();
@@ -13,34 +19,104 @@ export default function PostTaskPage() {
   const [aiOutput, setAiOutput] = useState("");
   const [criteria, setCriteria] = useState("");
   const [bounty, setBounty] = useState("0.50");
+  const [maxResponses, setMaxResponses] = useState(String(DEFAULT_TASK_MAX_RESPONSES));
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [paymentsConfigured, setPaymentsConfigured] = useState(false);
+
+  useEffect(() => {
+    void fetch("/api/auth/me", { credentials: "include" })
+      .then((res) => res.json().catch(() => ({})))
+      .then((json) => {
+        setPaymentsConfigured(Boolean(json?.world_payments_configured));
+      })
+      .catch(() => {
+        setPaymentsConfigured(false);
+      });
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const bountyNum = parseFloat(bounty);
+    const maxResponsesNum = parseInt(maxResponses, 10);
     if (isNaN(bountyNum) || bountyNum <= 0) {
       setError("Please enter a valid WLD bounty amount.");
       return;
     }
+    if (!Number.isInteger(maxResponsesNum) || maxResponsesNum <= 0) {
+      setError("Please enter a valid max funded response count.");
+      return;
+    }
+
+    if (paymentsConfigured && (!MiniKit.isInstalled() || !MiniKit.isInWorldApp())) {
+      setError("Open Classify inside World App to fund a task with WLD.");
+      return;
+    }
+
     setLoading(true);
-    const res = await fetch("/api/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ company_name: companyName.trim(), ai_output: aiOutput.trim(), criteria: criteria.trim(), bounty_wld: bountyNum }),
-    });
-    if (!res.ok) {
-      const { error: msg } = await res.json().catch(() => ({ error: "Failed to post task." }));
-      setError(msg ?? "Failed to post task.");
+    try {
+      const fundingAmount = Number((bountyNum * maxResponsesNum).toFixed(4));
+      let initJson: { reference?: string; challenge?: string; to?: string; token_amount?: string; error?: string } = {};
+      let payment: { data: PayResult };
+      if (paymentsConfigured) {
+        const initRes = await fetch("/api/payments/task-funding/init", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ funding_amount_wld: fundingAmount }),
+        });
+        initJson = await initRes.json().catch(() => ({}));
+        if (!initRes.ok) {
+          throw new Error(typeof initJson?.error === "string" ? initJson.error : "Could not initialize task funding.");
+        }
+
+        payment = await MiniKit.pay({
+          reference: initJson.reference!,
+          to: initJson.to!,
+          tokens: [{ symbol: Tokens.WLD, token_amount: initJson.token_amount! }],
+          description: `Fund ${maxResponsesNum} Classify responses`,
+          fallback: () => {
+            throw new Error("Open Classify inside World App to fund this task.");
+          },
+        });
+      } else {
+        payment = {
+          data: createSimulatedPaymentReference(`sim-ref-${Date.now()}`),
+        };
+      }
+
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          company_name: companyName.trim(),
+          ai_output: aiOutput.trim(),
+          criteria: criteria.trim(),
+          bounty_wld: bountyNum,
+          max_responses: maxResponsesNum,
+          funding_reference: initJson.reference,
+          funding_challenge: initJson.challenge,
+          funding_payload: payment.data,
+        }),
+      });
+
+      if (!res.ok) {
+        const { error: msg } = await res.json().catch(() => ({ error: "Failed to post task." }));
+        throw new Error(msg ?? "Failed to post task.");
+      }
+
+      const { id } = await res.json();
+      router.push(`/posted?highlight=${id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to post task.");
       setLoading(false);
       return;
     }
-    const { id } = await res.json();
-    router.push(`/posted?highlight=${id}`);
   }
 
   const bountyNum = parseFloat(bounty) || 0;
+  const maxResponsesNum = parseInt(maxResponses, 10) || DEFAULT_TASK_MAX_RESPONSES;
+  const fundingTotal = bountyNum * maxResponsesNum;
 
   return (
     <>
@@ -114,7 +190,7 @@ export default function PostTaskPage() {
           <div className="post-card">
             <label className="c-label">WLD Bounty per Response</label>
             <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
-              Each verified human who completes this task earns this amount.
+              Each verified human who completes this task earns this amount from your funded pool.
             </p>
 
             {/* Presets */}
@@ -163,12 +239,67 @@ export default function PostTaskPage() {
                 <span>Per response</span>
                 <span style={{ color: "var(--gold)", fontFamily: "var(--font-mono)" }}>{bountyNum.toFixed(2)} WLD</span>
               </div>
-              <div className="flex justify-between text-xs mb-3" style={{ color: "var(--text-muted)" }}>
-                <span>Example — 10 responses</span>
-                <span style={{ color: "var(--gold)", fontFamily: "var(--font-mono)" }}>{(bountyNum * 10).toFixed(2)} WLD</span>
+              <div className="flex justify-between text-xs" style={{ color: "var(--text-muted)" }}>
+                <span>Max funded responses</span>
+                <span style={{ color: "var(--gold)", fontFamily: "var(--font-mono)" }}>{maxResponsesNum}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="post-card">
+            <label className="c-label">Max Funded Responses</label>
+            <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>
+              We’ll fund this many worker payouts up front in a single World App payment.
+            </p>
+
+            <div className="flex gap-2 mb-4 flex-wrap">
+              {RESPONSE_CAP_PRESETS.map((preset) => {
+                const selected = maxResponsesNum === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setMaxResponses(String(preset))}
+                    style={{
+                      borderRadius: 10, padding: "8px 16px",
+                      fontSize: "0.8125rem", fontWeight: 600,
+                      border: selected ? "1px solid var(--signal-border)" : "1px solid var(--border)",
+                      background: selected ? "var(--signal-dim)" : "transparent",
+                      color: selected ? "var(--signal)" : "var(--text-muted)",
+                      cursor: "pointer", transition: "all 0.15s",
+                      fontFamily: "var(--font-mono)",
+                    }}
+                  >
+                    {preset} workers
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                step="1"
+                min="1"
+                max="500"
+                required
+                value={maxResponses}
+                onChange={(e) => setMaxResponses(e.target.value)}
+                className="c-input"
+                style={{ width: 140, fontFamily: "var(--font-mono)" }}
+              />
+              <span className="text-sm font-semibold" style={{ color: "var(--signal)" }}>workers</span>
+            </div>
+
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 16px", marginTop: 16 }}>
+              <div className="flex justify-between text-xs mb-1.5" style={{ color: "var(--text-muted)" }}>
+                <span>Total WLD charged now</span>
+                <span style={{ color: "var(--gold)", fontFamily: "var(--font-mono)" }}>{fundingTotal.toFixed(2)} WLD</span>
               </div>
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                ✱ WLD transfers are mocked in this demo. Real payments require World Chain integration.
+                {paymentsConfigured
+                  ? "The payment opens in World App and funds the payout pool before the task is published."
+                  : "Demo mode is active, so the task will appear funded without requiring a live World payment."}
               </p>
             </div>
           </div>
@@ -185,9 +316,9 @@ export default function PostTaskPage() {
                   <svg width="14" height="14" viewBox="0 0 14 14" style={{ animation: "iris-spin 1s linear infinite" }}>
                     <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeDasharray="20 14" />
                   </svg>
-                  Posting…
+                  Funding & posting…
                 </span>
-              ) : "Post Task →"}
+              ) : "Fund & Post Task →"}
             </button>
             <Link href="/posted" className="c-btn-ghost py-3.5">
               Posted tasks

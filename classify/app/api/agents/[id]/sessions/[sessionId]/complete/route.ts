@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { resolveRequestWorkerNullifier } from "@/lib/auth/requestUser";
 import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
-import { judgeSession } from "@/lib/ai/judge/engine";
+import { computeSessionReward, judgeSession } from "@/lib/ai/judge/engine";
 import type { Agent, AgentMessage, AgentSession } from "@/types/agents";
 
 interface Ctx {
@@ -16,8 +17,12 @@ export async function POST(request: Request, { params }: Ctx) {
     const { id: agent_id, sessionId: session_id } = params;
     const { nullifier_hash } = (await request.json()) as { nullifier_hash?: string };
 
-    if (!nullifier_hash?.trim()) {
-      return NextResponse.json({ error: "nullifier_hash is required." }, { status: 400 });
+    const identity = resolveRequestWorkerNullifier(nullifier_hash);
+    if (!identity.nullifierHash) {
+      return NextResponse.json(
+        { error: identity.error ?? "Worker identity is required." },
+        { status: identity.status ?? 400 }
+      );
     }
 
     const supabase = createServiceClient();
@@ -31,7 +36,7 @@ export async function POST(request: Request, { params }: Ctx) {
     if (sErr || !session) return NextResponse.json({ error: "Session not found." }, { status: 404 });
     if (session.agent_id !== agent_id)
       return NextResponse.json({ error: "Session mismatch." }, { status: 400 });
-    if (session.nullifier_hash !== nullifier_hash.trim())
+    if (session.nullifier_hash !== identity.nullifierHash)
       return NextResponse.json({ error: "Not your session." }, { status: 403 });
     if (session.status !== "active") {
       return NextResponse.json(
@@ -58,10 +63,11 @@ export async function POST(request: Request, { params }: Ctx) {
     const userMessages = allMessages.filter((m) => m.role === "user");
 
     const result = await judgeSession(agent, allMessages, userMessages);
+    const payout_wld = result.passed ? computeSessionReward(Number(agent.bounty_wld), result) : 0;
 
     const newStatus = result.passed ? "eligible" : "rejected";
     const payout_note = result.passed
-      ? `Passed Classify judge (score ${(result.overall_score * 10).toFixed(1)}/10) — bounty eligible.`
+      ? `Passed Classify judge (score ${(result.overall_score * 10).toFixed(1)}/10) — earned ${payout_wld.toFixed(2)} WLD for depth, coverage, and problem discovery.`
       : `Rejected: ${result.overall_assessment?.slice(0, 200) ?? "Did not meet passing criteria."}`;
 
     // Persist evaluation and update session status in parallel
@@ -77,6 +83,12 @@ export async function POST(request: Request, { params }: Ctx) {
         ai_detection_reason: result.ai_detection_reason,
         objective_completion: result.objective_completion,
         objective_completion_reason: result.objective_completion_reason,
+        conversation_depth_score: result.conversation_depth_score,
+        conversation_depth_reason: result.conversation_depth_reason,
+        edge_case_coverage_score: result.edge_case_coverage_score,
+        edge_case_coverage_reason: result.edge_case_coverage_reason,
+        problem_discovery_score: result.problem_discovery_score,
+        problem_discovery_reason: result.problem_discovery_reason,
         hallucination_flags: result.hallucination_flags,
         overall_score: result.overall_score,
         overall_assessment: result.overall_assessment,
@@ -90,7 +102,7 @@ export async function POST(request: Request, { params }: Ctx) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any)
         .from("agent_sessions")
-        .update({ status: newStatus, payout_note })
+        .update({ status: newStatus, payout_note, payout_wld: result.passed ? payout_wld : null })
         .eq("id", session_id),
     ]);
 
@@ -133,11 +145,18 @@ export async function POST(request: Request, { params }: Ctx) {
       status: newStatus,
       payout_note,
       bounty_wld: agent.bounty_wld,
+      payout_wld,
       evaluation: {
         relevance_score: result.relevance_score,
         rule_compliance_score: result.rule_compliance_score,
         ai_detection_score: result.ai_detection_score,
         objective_completion: result.objective_completion,
+        conversation_depth_score: result.conversation_depth_score,
+        conversation_depth_reason: result.conversation_depth_reason,
+        edge_case_coverage_score: result.edge_case_coverage_score,
+        edge_case_coverage_reason: result.edge_case_coverage_reason,
+        problem_discovery_score: result.problem_discovery_score,
+        problem_discovery_reason: result.problem_discovery_reason,
         hallucination_flags: result.hallucination_flags,
         overall_score: result.overall_score,
         overall_assessment: result.overall_assessment,

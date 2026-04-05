@@ -317,8 +317,8 @@ export default async function AgentReportPage({ params }: Props) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {recentSessions.map(({ session, evaluation: ev }) => (
-                <div key={session.id} style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <div key={session.id} className="recent-session-row" style={{ background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <div className="recent-session-left" style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                     <span style={{ flexShrink: 0, fontFamily: "var(--font-mono)", fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 3,
                       background: session.status === "eligible" ? "var(--pass-dim)" : "var(--fail-dim)",
                       color: session.status === "eligible" ? "var(--pass)" : "var(--fail)",
@@ -330,7 +330,7 @@ export default async function AgentReportPage({ params }: Props) {
                       {session.id.slice(0, 8)}…
                     </span>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
+                  <div className="recent-session-right" style={{ display: "flex", alignItems: "center", gap: 14, flexShrink: 0 }}>
                     {ev && (
                       <>
                         <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-2)" }}>
@@ -372,6 +372,20 @@ export default async function AgentReportPage({ params }: Props) {
           <Link href="/agents" className="c-btn-ghost" style={{ padding: "8px 16px", fontSize: 12 }}>All agents</Link>
         </div>
 
+        <style>{`
+          @media (max-width: 720px) {
+            .recent-session-row {
+              flex-direction: column;
+              align-items: flex-start !important;
+            }
+            .recent-session-left,
+            .recent-session-right {
+              width: 100%;
+              justify-content: flex-start !important;
+              flex-wrap: wrap;
+            }
+          }
+        `}</style>
       </main>
     </>
   );

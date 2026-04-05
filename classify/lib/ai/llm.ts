@@ -1,25 +1,79 @@
 /**
- * Routes inference to Anthropic (cloud) or a local OpenAI-compatible server (Ollama, LM Studio, vLLM, etc.).
+ * Routes inference to Anthropic (cloud) or any OpenAI-compatible endpoint.
  *
- * Local: set AI_PROVIDER=local and LOCAL_LLM_BASE_URL (e.g. http://127.0.0.1:11434/v1 for Ollama).
+ * Supported env styles:
+ * - Legacy/local: AI_PROVIDER=local with LOCAL_LLM_*
+ * - Hosted OpenAI-compatible: AI_PROVIDER=openai_compatible with OPENAI_COMPATIBLE_*
+ * - Groq convenience: AI_PROVIDER=groq with GROQ_API_KEY (+ optional GROQ_MODEL)
  */
 
-export type AiProvider = "anthropic" | "local";
+export type AiProvider = "anthropic" | "openai_compatible";
+
+function isLoopbackHost(value: string): boolean {
+  return /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(value.trim());
+}
+
+function isVercelRuntime(): boolean {
+  return Boolean(process.env.VERCEL?.trim() || process.env.VERCEL_ENV?.trim());
+}
 
 export function getAiProvider(): AiProvider {
   const explicit = process.env.AI_PROVIDER?.toLowerCase().trim();
-  if (explicit === "local") return "local";
+  if (explicit === "local" || explicit === "openai_compatible" || explicit === "groq") {
+    return "openai_compatible";
+  }
   if (explicit === "anthropic") return "anthropic";
-  if (process.env.LOCAL_LLM_BASE_URL?.trim()) return "local";
+  if (getOpenAiCompatibleBaseUrl()) return "openai_compatible";
   return "anthropic";
 }
 
 /** True if the active provider has minimum config to call the API. */
 export function isLlmConfigured(): boolean {
-  if (getAiProvider() === "local") {
-    return Boolean(process.env.LOCAL_LLM_BASE_URL?.trim() && process.env.LOCAL_LLM_MODEL?.trim());
+  if (getAiProvider() === "openai_compatible") {
+    const base = getOpenAiCompatibleBaseUrl();
+    if (!base || !getOpenAiCompatibleModel()) return false;
+    if (isVercelRuntime() && isLoopbackHost(base)) return false;
+    return true;
   }
   return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+}
+
+export function getOpenAiCompatibleBaseUrl(): string | null {
+  const explicit = process.env.OPENAI_COMPATIBLE_BASE_URL?.trim();
+  if (explicit) return explicit.replace(/\/$/, "");
+
+  if (process.env.AI_PROVIDER?.toLowerCase().trim() === "groq") {
+    return "https://api.groq.com/openai/v1";
+  }
+
+  const legacy = process.env.LOCAL_LLM_BASE_URL?.trim();
+  return legacy ? legacy.replace(/\/$/, "") : null;
+}
+
+export function getOpenAiCompatibleModel(): string | null {
+  if (process.env.AI_PROVIDER?.toLowerCase().trim() === "groq") {
+    const groqModel = process.env.GROQ_MODEL?.trim();
+    if (groqModel) return groqModel;
+  }
+
+  return (
+    process.env.OPENAI_COMPATIBLE_MODEL?.trim() ||
+    process.env.LOCAL_LLM_MODEL?.trim() ||
+    null
+  );
+}
+
+function getOpenAiCompatibleApiKey(): string | null {
+  if (process.env.AI_PROVIDER?.toLowerCase().trim() === "groq") {
+    const groqKey = process.env.GROQ_API_KEY?.trim();
+    if (groqKey) return groqKey;
+  }
+
+  return (
+    process.env.OPENAI_COMPATIBLE_API_KEY?.trim() ||
+    process.env.LOCAL_LLM_API_KEY?.trim() ||
+    null
+  );
 }
 
 async function anthropicMessages(
@@ -62,15 +116,22 @@ async function openAiCompatibleChat(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   maxTokens: number
 ): Promise<string> {
-  const base = process.env.LOCAL_LLM_BASE_URL?.replace(/\/$/, "") ?? "";
-  const model = process.env.LOCAL_LLM_MODEL?.trim();
+  const base = getOpenAiCompatibleBaseUrl() ?? "";
+  const model = getOpenAiCompatibleModel();
   if (!base || !model) {
-    throw new Error("LOCAL_LLM_BASE_URL and LOCAL_LLM_MODEL are required for local inference.");
+    throw new Error(
+      "An OpenAI-compatible base URL and model are required. Set OPENAI_COMPATIBLE_* or LOCAL_LLM_* env vars."
+    );
+  }
+  if (isVercelRuntime() && isLoopbackHost(base)) {
+    throw new Error(
+      "Your OpenAI-compatible base URL points to localhost, which is not reachable from Vercel. Use a public HTTPS endpoint such as Groq or another hosted model API."
+    );
   }
 
   const url = `${base}/chat/completions`;
   const headers: Record<string, string> = { "content-type": "application/json" };
-  const apiKey = process.env.LOCAL_LLM_API_KEY?.trim();
+  const apiKey = getOpenAiCompatibleApiKey();
   if (apiKey) headers.authorization = `Bearer ${apiKey}`;
 
   const openaiMessages = [
@@ -94,7 +155,7 @@ async function openAiCompatibleChat(
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    throw new Error(`Local LLM ${res.status}: ${errText.slice(0, 300)}`);
+    throw new Error(`OpenAI-compatible LLM ${res.status}: ${errText.slice(0, 300)}`);
   }
 
   const data = (await res.json()) as {
@@ -109,7 +170,7 @@ export async function callLlmSingleTurn(
   maxTokens = 1024
 ): Promise<string> {
   const provider = getAiProvider();
-  if (provider === "local") {
+  if (provider === "openai_compatible") {
     return openAiCompatibleChat(system, [{ role: "user", content: user }], maxTokens);
   }
   return anthropicMessages(system, [{ role: "user", content: user }], maxTokens);
@@ -121,7 +182,7 @@ export async function callLlmMultiTurn(
   maxTokens = 1024
 ): Promise<string> {
   const provider = getAiProvider();
-  if (provider === "local") {
+  if (provider === "openai_compatible") {
     return openAiCompatibleChat(system, messages, maxTokens);
   }
   return anthropicMessages(system, messages, maxTokens);

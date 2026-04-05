@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveRequestWorkerNullifier } from "@/lib/auth/requestUser";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/server";
 import type { Response, Task, WorkerSummaryRow } from "@/types/database";
 
@@ -9,17 +10,22 @@ export async function POST(request: Request) {
     }
 
     const { nullifier_hash } = await request.json();
-    if (!nullifier_hash || typeof nullifier_hash !== "string" || !nullifier_hash.trim()) {
-      return NextResponse.json({ error: "nullifier_hash is required." }, { status: 400 });
+    const identity = resolveRequestWorkerNullifier(
+      typeof nullifier_hash === "string" ? nullifier_hash : null
+    );
+    if (!identity.nullifierHash) {
+      return NextResponse.json(
+        { error: identity.error ?? "Worker identity is required." },
+        { status: identity.status ?? 400 }
+      );
     }
 
-    const hash = nullifier_hash.trim();
     const supabase = createClient();
 
     const { data: responses, error: rErr } = await supabase
       .from("responses")
       .select("*")
-      .eq("nullifier_hash", hash)
+      .eq("nullifier_hash", identity.nullifierHash)
       .order("created_at", { ascending: false }) as { data: Response[] | null; error: unknown };
 
     if (rErr) {
@@ -50,7 +56,7 @@ export async function POST(request: Request) {
       })
       .filter((x): x is WorkerSummaryRow => x != null);
 
-    const total_wld = rows.reduce((s, r) => s + Number(r.task.bounty_wld), 0);
+    const total_wld = rows.reduce((s, r) => s + (r.paid ? Number(r.task.bounty_wld) : 0), 0);
 
     return NextResponse.json({ rows, total_wld });
   } catch (err) {

@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import StarRating from "@/components/StarRating";
-import { clearWorkerNullifier, getWorkerNullifier } from "@/lib/workerIdentity";
 import type { WorkerSummaryRow } from "@/types/database";
 
-export default function WorkerDashboard() {
-  const [nullifier, setNullifier] = useState<string | null>(null);
+interface Props {
+  initialNullifierHash?: string | null;
+}
+
+export default function WorkerDashboard({ initialNullifierHash = null }: Props) {
+  const [nullifier, setNullifier] = useState<string | null>(initialNullifierHash);
   const [rows, setRows] = useState<WorkerSummaryRow[]>([]);
   const [totalWld, setTotalWld] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -41,20 +44,47 @@ export default function WorkerDashboard() {
   }, []);
 
   useEffect(() => {
-    const h = getWorkerNullifier();
-    setNullifier(h);
-    if (h) load(h);
-    else setLoading(false);
-  }, [load]);
+    let active = true;
+
+    async function hydrate() {
+      if (initialNullifierHash) {
+        setNullifier(initialNullifierHash);
+        await load(initialNullifierHash);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const json = await res.json().catch(() => ({}));
+        if (!active) return;
+        const hash =
+          typeof json?.user?.world_id_nullifier_hash === "string"
+            ? json.user.world_id_nullifier_hash
+            : null;
+        setNullifier(hash);
+        if (hash) {
+          await load(hash);
+        } else {
+          setLoading(false);
+        }
+      } catch {
+        if (!active) return;
+        setNullifier(null);
+        setLoading(false);
+      }
+    }
+
+    hydrate();
+    return () => {
+      active = false;
+    };
+  }, [initialNullifierHash, load]);
 
   const refresh = () => {
-    const h = getWorkerNullifier();
-    setNullifier(h);
-    if (h) load(h);
+    if (nullifier) load(nullifier);
   };
 
   const forget = () => {
-    clearWorkerNullifier();
     setNullifier(null);
     setRows([]);
     setTotalWld(0);
@@ -79,8 +109,8 @@ export default function WorkerDashboard() {
           </div>
           <p className="font-display text-3xl text-white tracking-wider mb-2">YOUR WORKER DASHBOARD</p>
           <p className="text-sm max-w-md mx-auto mb-8" style={{ color: "var(--text-muted)" }}>
-            After you verify with World ID and submit feedback on a task, this browser remembers your session so we can
-            show tasks you&apos;ve evaluated, history, and WLD earned (per bounty).
+            After you verify with World ID, link your wallet, and submit feedback on a task, your real WLD payout
+            history appears here.
           </p>
           <Link href="/tasks" className="c-btn-primary px-8 py-3 text-sm justify-center inline-flex">
             Browse tasks to evaluate →
@@ -106,7 +136,7 @@ export default function WorkerDashboard() {
             DASHBOARD
           </h1>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Open tasks you&apos;ve rated (still collecting), closed tasks (archived), and total WLD attributed to your submissions.
+            Open tasks you&apos;ve rated, closed tasks, and total WLD that actually settled to your linked wallet.
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
@@ -114,7 +144,7 @@ export default function WorkerDashboard() {
             {loading ? "Loading…" : "Refresh"}
           </button>
           <button type="button" onClick={forget} className="c-btn-ghost py-2.5 text-xs">
-            Forget this browser
+            Clear view
           </button>
         </div>
       </div>
@@ -218,6 +248,12 @@ function WorkerRow({ row }: { row: WorkerSummaryRow }) {
           {row.flagged_suspicious && (
             <span className="text-[10px] font-mono uppercase" style={{ color: "var(--red)" }}>Flagged</span>
           )}
+          <span
+            className="text-[10px] font-mono uppercase"
+            style={{ color: row.paid ? "var(--signal)" : row.payout_status === "failed" ? "var(--red)" : "var(--text-muted)" }}
+          >
+            {row.paid ? "Paid" : row.payout_status === "failed" ? "Payout failed" : "Pending payout"}
+          </span>
           <span>{new Date(row.created_at).toLocaleString()}</span>
         </div>
       </div>

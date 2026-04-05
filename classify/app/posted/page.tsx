@@ -62,7 +62,7 @@ export default async function PostedTasksPage({ searchParams }: Props) {
               {company ? `${company.toUpperCase()}'S TASKS` : "POSTED TASKS"}
             </h1>
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Every task on the marketplace, response counts, averages, and WLD paid out per task.
+              Every task on the marketplace, response counts, averages, funded pool balance, and WLD paid out per task.
             </p>
             <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
               Evaluating? Use{" "}
@@ -100,6 +100,7 @@ export default async function PostedTasksPage({ searchParams }: Props) {
           <div className="space-y-4 animate-fade-up animate-delay-200">
             {filteredTasks.map((task) => {
               const taskResponses = byTask[task.id] ?? [];
+              const paidResponses = taskResponses.filter((response) => response.paid);
               const avg = taskResponses.length > 0
                 ? taskResponses.reduce((s, r) => s + r.rating, 0) / taskResponses.length
                 : null;
@@ -154,7 +155,10 @@ export default async function PostedTasksPage({ searchParams }: Props) {
                     )}
                     <span>Posted {new Date(task.created_at).toLocaleDateString()}</span>
                     <span style={{ color: "var(--gold)", fontFamily: "var(--font-mono)" }}>
-                      {(Number(task.bounty_wld) * taskResponses.length).toFixed(2)} WLD paid
+                      {(Number(task.bounty_wld) * paidResponses.length).toFixed(2)} WLD paid
+                    </span>
+                    <span style={{ color: "var(--signal)", fontFamily: "var(--font-mono)" }}>
+                      {(Number(task.remaining_pool_wld ?? 0)).toFixed(2)} WLD left
                     </span>
                   </div>
 

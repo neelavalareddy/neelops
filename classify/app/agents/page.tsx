@@ -3,6 +3,7 @@ import { PUBLIC_AGENT_SELECT } from "@/lib/agents";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/server";
 import MissingSupabaseConfig from "@/components/MissingSupabaseConfig";
 import NavBar from "@/components/NavBar";
+import SeedDemoAgentsButton from "@/components/agents/SeedDemoAgentsButton";
 import type { Agent } from "@/types/agents";
 
 export const revalidate = 0;
@@ -28,7 +29,7 @@ export default async function AgentsPage() {
       <main style={{ maxWidth: 1152, margin: "0 auto", padding: "48px 24px" }}>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 40 }}>
+        <div className="agents-header" style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, marginBottom: 40 }}>
           <div>
             <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--amber)", marginBottom: 8 }}>
               Agent Registry
@@ -41,9 +42,12 @@ export default async function AgentsPage() {
               evaluates your prompting on four criteria before releasing the bounty.
             </p>
           </div>
-          <Link href="/agents/new" className="c-btn-primary" style={{ flexShrink: 0, padding: "9px 18px", fontSize: 12 }}>
-            + Connect Agent
-          </Link>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <SeedDemoAgentsButton />
+            <Link href="/agents/new" className="c-btn-primary" style={{ flexShrink: 0, padding: "9px 18px", fontSize: 12 }}>
+              + Connect Agent
+            </Link>
+          </div>
         </div>
 
         {/* Open agents */}
@@ -64,7 +68,7 @@ export default async function AgentsPage() {
                   className="animate-fade-up"
                   style={{ textDecoration: "none", display: "block", animationDelay: `${i * 40}ms` }}
                 >
-                  <div className="c-case-card" style={{ padding: "18px 22px", display: "grid", gridTemplateColumns: "1fr auto", gap: 16, alignItems: "center" }}>
+                  <div className="c-case-card agents-card" style={{ padding: "18px 22px", display: "grid", gridTemplateColumns: "1fr auto", gap: 16, alignItems: "center" }}>
                     <div style={{ minWidth: 0 }}>
                       {/* Top row */}
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -88,7 +92,7 @@ export default async function AgentsPage() {
                       </div>
                     </div>
                     {/* Right stats */}
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
+                    <div className="agents-card-meta" style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8, flexShrink: 0 }}>
                       <div className="c-badge-amber">◈ {a.bounty_wld} WLD</div>
                       <div style={{ display: "flex", gap: 12 }}>
                         <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-3)" }}>
@@ -110,6 +114,21 @@ export default async function AgentsPage() {
             })}
           </div>
         )}
+        <style>{`
+          @media (max-width: 720px) {
+            .agents-header {
+              flex-direction: column;
+              align-items: stretch;
+              margin-bottom: 28px;
+            }
+            .agents-card {
+              grid-template-columns: 1fr !important;
+            }
+            .agents-card-meta {
+              align-items: flex-start !important;
+            }
+          }
+        `}</style>
 
         {/* Closed agents */}
         {closed.length > 0 && (

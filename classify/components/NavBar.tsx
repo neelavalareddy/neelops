@@ -5,8 +5,29 @@ import { useEffect, useState } from "react";
 import BrandLogo from "@/components/BrandLogo";
 import type { SessionUser } from "@/lib/auth/session";
 
+type AuthViewer = SessionUser & {
+  username?: string | null;
+  wallet_address?: string | null;
+};
+
+function getUserBadgeLabel(user: AuthViewer): string {
+  if (user.role === "admin") {
+    return "Admin";
+  }
+
+  if (user.username?.trim()) {
+    return user.username.trim();
+  }
+
+  if (user.wallet_address) {
+    return `Wallet ${user.wallet_address.slice(0, 6)}...${user.wallet_address.slice(-4)}`;
+  }
+
+  return "Verified user";
+}
+
 export default function NavBar() {
-  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthViewer | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -39,6 +60,8 @@ export default function NavBar() {
     transition: "color 0.15s, background 0.15s",
   } as const;
 
+  const userBadgeLabel = currentUser ? getUserBadgeLabel(currentUser) : null;
+
   return (
     <header style={{
       position: "sticky", top: 0, zIndex: 50,
@@ -47,12 +70,15 @@ export default function NavBar() {
       backdropFilter: "blur(20px)",
       WebkitBackdropFilter: "blur(20px)",
     }}>
-      <div style={{
+      <div
+        className="nav-shell"
+        style={{
         maxWidth: 1152, margin: "0 auto",
         display: "flex", alignItems: "center", justifyContent: "space-between",
         minHeight: 62, padding: "10px 20px",
         gap: 16,
-      }}>
+      }}
+      >
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
           <div style={{
             width: 22, height: 34,
@@ -81,7 +107,7 @@ export default function NavBar() {
           </div>
         </Link>
 
-        <nav style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <nav className="nav-links" style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
           {[
             { href: "/agents", label: "Agents" },
             { href: "/tasks", label: "Tasks" },
@@ -105,7 +131,7 @@ export default function NavBar() {
                   background: "rgba(97, 245, 163, 0.08)",
                 }}
               >
-                World ID {currentUser.id.slice(0, 8)}
+                {userBadgeLabel}
               </div>
               <form method="POST" action="/api/auth/logout">
                 <button
@@ -132,6 +158,19 @@ export default function NavBar() {
           </Link>
         </nav>
       </div>
+      <style>{`
+        @media (max-width: 720px) {
+          .nav-shell {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 12px 16px;
+          }
+          .nav-links {
+            width: 100%;
+            justify-content: flex-start;
+          }
+        }
+      `}</style>
     </header>
   );
 }

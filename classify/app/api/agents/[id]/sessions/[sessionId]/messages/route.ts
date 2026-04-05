@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { PUBLIC_AGENT_SELECT } from "@/lib/agents";
+import { resolveRequestWorkerNullifier } from "@/lib/auth/requestUser";
 import { generateCompanyAgentReply } from "@/lib/ai/companyAgentReply";
 import { evaluateAgentUserMessage } from "@/lib/ai/classifyAgentEval";
 import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
@@ -28,8 +29,12 @@ export async function POST(request: Request, { params }: Ctx) {
       content?: string;
     };
 
-    if (!nullifier_hash?.trim()) {
-      return NextResponse.json({ error: "nullifier_hash is required." }, { status: 400 });
+    const identity = resolveRequestWorkerNullifier(nullifier_hash);
+    if (!identity.nullifierHash) {
+      return NextResponse.json(
+        { error: identity.error ?? "Worker identity is required." },
+        { status: identity.status ?? 400 }
+      );
     }
     const text = typeof content === "string" ? content.trim() : "";
     if (!text || text.length > 12000) {
@@ -48,7 +53,7 @@ export async function POST(request: Request, { params }: Ctx) {
     if (session.agent_id !== agent_id) {
       return NextResponse.json({ error: "Session mismatch." }, { status: 400 });
     }
-    if (session.nullifier_hash !== nullifier_hash.trim()) {
+    if (session.nullifier_hash !== identity.nullifierHash) {
       return NextResponse.json({ error: "Not your session." }, { status: 403 });
     }
     if (session.status !== "active") {

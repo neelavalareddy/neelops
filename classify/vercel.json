@@ -1,0 +1,20 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "app/api/agents/**/*.ts": {
+      "maxDuration": 60
+    },
+    "app/api/tasks/**/*.ts": {
+      "maxDuration": 30
+    },
+    "app/api/responses/**/*.ts": {
+      "maxDuration": 30
+    },
+    "app/api/verify/**/*.ts": {
+      "maxDuration": 15
+    },
+    "app/api/worldid/**/*.ts": {
+      "maxDuration": 15
+    }
+  }
+}

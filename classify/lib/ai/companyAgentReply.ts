@@ -23,7 +23,7 @@ export async function generateCompanyAgentReply(
 
   if (!isLlmConfigured()) {
     return (
-      `[${agent.name} — demo mode] Enable a local model with AI_PROVIDER=local and LOCAL_LLM_*. ` +
+      `[${agent.name} — demo mode] Configure ANTHROPIC_API_KEY, Groq, or another OpenAI-compatible endpoint for deployment. ` +
       `Objective: ${agent.objective.slice(0, 200)}${agent.objective.length > 200 ? "…" : ""}`
     );
   }

@@ -18,10 +18,11 @@ type Msg = AgentMessage & {
 
 interface Props {
   agent: Agent;
+  initialNullifierHash?: string | null;
 }
 
-export default function AgentChat({ agent }: Props) {
-  const [nullifier, setNullifier] = useState<string | null>(null);
+export default function AgentChat({ agent, initialNullifierHash = null }: Props) {
+  const [nullifier, setNullifier] = useState<string | null>(initialNullifierHash);
   const [session, setSession] = useState<AgentSession | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -56,10 +57,15 @@ export default function AgentChat({ agent }: Props) {
   }, [agent.id]);
 
   useEffect(() => {
-    const h = getWorkerNullifier();
-    if (h) { setNullifier(h); startOrResume(h); }
-    else setBooting(false);
-  }, [startOrResume]);
+    const h = initialNullifierHash ?? getWorkerNullifier();
+    if (h) {
+      persistWorkerNullifier(h);
+      setNullifier(h);
+      startOrResume(h);
+    } else {
+      setBooting(false);
+    }
+  }, [initialNullifierHash, startOrResume]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -69,6 +75,15 @@ export default function AgentChat({ agent }: Props) {
     persistWorkerNullifier(hash);
     setNullifier(hash);
     startOrResume(hash);
+  }
+
+  async function startAnotherAttempt() {
+    if (!nullifier || loading) return;
+    setSession(null);
+    setMessages([]);
+    setSessionEval(null);
+    setStatusMsg(null);
+    await startOrResume(nullifier);
   }
 
   async function send() {
@@ -114,10 +129,10 @@ export default function AgentChat({ agent }: Props) {
       const j = await res.json().catch(() => ({}));
       if (j.evaluation) setSessionEval(j.evaluation as SessionEvaluation);
       if (j.ok && j.status === "eligible") {
-        setSession((s) => s ? { ...s, status: "eligible", payout_note: j.payout_note } : s);
+        setSession((s) => s ? { ...s, status: "eligible", payout_note: j.payout_note, payout_wld: j.payout_wld } : s);
         setStatusMsg(null);
       } else if (j.status === "rejected") {
-        setSession((s) => s ? { ...s, status: "rejected", payout_note: j.payout_note } : s);
+        setSession((s) => s ? { ...s, status: "rejected", payout_note: j.payout_note, payout_wld: j.payout_wld ?? null } : s);
         setStatusMsg(null);
       } else {
         setStatusMsg(typeof j?.reason === "string" ? j.reason : j?.error ?? "Could not complete.");
@@ -145,7 +160,7 @@ export default function AgentChat({ agent }: Props) {
       <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, padding: "28px 24px" }}>
         <div style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-2)", lineHeight: 1.65, marginBottom: 20 }}>
           Verify once with World ID to start. The judge scores your messages in real-time for relevance,
-          rule compliance, and human authenticity — pass all four gates to earn the bounty.
+          rule compliance, and human authenticity. You can retry the same agent multiple times to improve your score or surface more issues.
         </div>
         <WorldIDButton taskId={agent.id} onVerified={onVerified} />
       </div>
@@ -296,7 +311,7 @@ export default function AgentChat({ agent }: Props) {
       {/* Verdict card */}
       {isFinalized && sessionEval && (
         <div className="animate-verdict">
-          <SessionScoreCard evaluation={sessionEval} bounty_wld={agent.bounty_wld} />
+          <SessionScoreCard evaluation={sessionEval} bounty_wld={agent.bounty_wld} payout_wld={session.payout_wld} />
         </div>
       )}
 
@@ -316,6 +331,15 @@ export default function AgentChat({ agent }: Props) {
       {/* Post-session nav */}
       {isFinalized && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={startAnotherAttempt}
+            className="c-btn-primary"
+            style={{ padding: "8px 16px", fontSize: 12 }}
+            disabled={loading || !nullifier}
+          >
+            Start another attempt
+          </button>
           <Link href="/agents" className="c-btn-ghost" style={{ padding: "8px 16px", fontSize: 12 }}>Other agents</Link>
           <Link href="/dashboard" className="c-btn-ghost" style={{ padding: "8px 16px", fontSize: 12 }}>Dashboard</Link>
         </div>

@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { extractConsensusInsights } from "@/lib/ai/anthropic";
 import { computeSuspiciousFlags } from "@/lib/ai/anomaly";
+import { getAppUserById } from "@/lib/auth/users";
+import { resolveRequestWorkerNullifier } from "@/lib/auth/requestUser";
 import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
+import { createSimulatedPayoutHash, hasWorldPaymentRails, sendWldPayout } from "@/lib/world/payments";
 import type { Response, Task } from "@/types/database";
 
 export async function POST(request: Request) {
@@ -19,8 +22,16 @@ export async function POST(request: Request) {
       time_to_submit_ms?: number | null;
     };
 
-    if (!task_id || !nullifier_hash) {
-      return NextResponse.json({ error: "task_id and nullifier_hash are required." }, { status: 400 });
+    const identity = resolveRequestWorkerNullifier(nullifier_hash);
+    if (!identity.nullifierHash) {
+      return NextResponse.json(
+        { error: identity.error ?? "Worker identity is required." },
+        { status: identity.status ?? 400 }
+      );
+    }
+
+    if (!task_id) {
+      return NextResponse.json({ error: "task_id is required." }, { status: 400 });
     }
     if (!rating || rating < 1 || rating > 5) {
       return NextResponse.json({ error: "rating must be between 1 and 5." }, { status: 400 });
@@ -30,13 +41,31 @@ export async function POST(request: Request) {
     }
 
     const supabase = createServiceClient();
+    const paymentsConfigured = hasWorldPaymentRails();
+    const appUser = identity.user?.id && identity.user.id !== "god-mode"
+      ? await getAppUserById(identity.user.id)
+      : null;
+    const payoutWallet =
+      appUser?.wallet_address?.trim().toLowerCase() ||
+      (paymentsConfigured ? null : `world-id-${identity.nullifierHash.slice(0, 12)}`);
+
+    if (!identity.user) {
+      return NextResponse.json({ error: "Sign in with World ID before submitting." }, { status: 401 });
+    }
+    if (paymentsConfigured && !payoutWallet) {
+      return NextResponse.json({ error: "Link your World wallet before submitting to receive WLD." }, { status: 400 });
+    }
+
     const trimmedFeedback = feedback_text.trim();
 
     const { data: task, error: taskError } = await supabase
       .from("tasks")
-      .select("id, status, bounty_wld")
+      .select("id, status, bounty_wld, remaining_pool_wld")
       .eq("id", task_id)
-      .single() as { data: { id: string; status: string; bounty_wld: number } | null; error: unknown };
+      .single() as {
+        data: { id: string; status: string; bounty_wld: number; remaining_pool_wld: number } | null;
+        error: unknown;
+      };
 
     if (taskError || !task) {
       return NextResponse.json({ error: "Task not found." }, { status: 404 });
@@ -44,12 +73,15 @@ export async function POST(request: Request) {
     if (task.status === "closed") {
       return NextResponse.json({ error: "This task is closed." }, { status: 400 });
     }
+    if (Number(task.remaining_pool_wld) < Number(task.bounty_wld)) {
+      return NextResponse.json({ error: "This task has no funded WLD remaining." }, { status: 400 });
+    }
 
     const { data: existing } = await supabase
       .from("responses")
       .select("id")
       .eq("task_id", task_id)
-      .eq("nullifier_hash", nullifier_hash)
+      .eq("nullifier_hash", identity.nullifierHash)
       .single();
 
     if (existing) {
@@ -61,7 +93,7 @@ export async function POST(request: Request) {
 
     const flagged = await computeSuspiciousFlags(
       supabase,
-      nullifier_hash,
+      identity.nullifierHash,
       rating,
       time_to_submit_ms,
       trimmedFeedback.length
@@ -72,28 +104,91 @@ export async function POST(request: Request) {
         ? Math.round(time_to_submit_ms)
         : null;
 
+    const { data: claimRows, error: claimError } = await (supabase as any)
+      .rpc("claim_task_pool", {
+        task_uuid: task_id,
+        amount: Number(task.bounty_wld),
+      }) as { data: Array<{ remaining_pool_wld: number; funding_status: string }> | null; error: unknown };
+
+    if (claimError || !claimRows?.length) {
+      return NextResponse.json({ error: "This task ran out of funded WLD before your payout could be reserved." }, { status: 409 });
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from("responses")
       .insert({
         task_id,
-        nullifier_hash,
+        nullifier_hash: identity.nullifierHash,
         rating,
         feedback_text: trimmedFeedback,
-        paid: true,
+        paid: false,
         flagged_suspicious: flagged,
         time_to_submit_ms: timeMs,
+        payout_status: "pending",
+        payout_wallet_address: payoutWallet,
       })
       .select()
       .single() as { data: Response | null; error: unknown };
 
     if (error || !data) {
+      await (supabase as any).rpc("release_task_pool", {
+        task_uuid: task_id,
+        amount: Number(task.bounty_wld),
+      });
       return NextResponse.json({ error: "Failed to save response." }, { status: 500 });
     }
 
     await maybeGenerateInsights(supabase, task_id);
 
-    return NextResponse.json({ id: data.id, bounty_wld: task.bounty_wld, flagged_suspicious: flagged });
+    try {
+      if (paymentsConfigured && !payoutWallet) {
+        throw new Error("Link your World wallet before submitting to receive WLD.");
+      }
+      const txHash = paymentsConfigured
+        ? await sendWldPayout(payoutWallet as string, Number(task.bounty_wld))
+        : createSimulatedPayoutHash(data.id);
+      await (supabase as any)
+        .from("responses")
+        .update({
+          paid: true,
+          payout_status: "paid",
+          payout_transaction_hash: txHash,
+          payout_attempted_at: new Date().toISOString(),
+          payout_paid_at: new Date().toISOString(),
+          payout_error: null,
+        })
+        .eq("id", data.id);
+
+      return NextResponse.json({
+        id: data.id,
+        bounty_wld: task.bounty_wld,
+        flagged_suspicious: flagged,
+        payout_status: "paid",
+        payout_transaction_hash: txHash,
+        payout_wallet_address: payoutWallet,
+        simulated: !paymentsConfigured,
+      });
+    } catch (payoutError) {
+      const message = payoutError instanceof Error ? payoutError.message : "Treasury payout failed.";
+      console.error("[responses POST payout]", payoutError);
+
+      await (supabase as any)
+        .from("responses")
+        .update({
+          payout_status: "failed",
+          payout_error: message,
+          payout_attempted_at: new Date().toISOString(),
+        })
+        .eq("id", data.id);
+
+      await (supabase as any).rpc("release_task_pool", {
+        task_uuid: task_id,
+        amount: Number(task.bounty_wld),
+      });
+
+      return NextResponse.json({ error: message }, { status: 502 });
+    }
   } catch (err) {
     console.error("[responses POST]", err);
     return NextResponse.json({ error: "Internal server error." }, { status: 500 });

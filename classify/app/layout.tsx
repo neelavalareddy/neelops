@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import WorldAppBootstrap from "@/components/WorldAppBootstrap";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,6 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="min-h-full" suppressHydrationWarning>
       <body className="min-h-screen antialiased">
+        <WorldAppBootstrap />
         {children}
       </body>
     </html>

@@ -7,9 +7,10 @@ import type { SessionEvaluation, HallucinationFlag } from "@/types/agents";
 interface Props {
   evaluation: SessionEvaluation;
   bounty_wld?: number;
+  payout_wld?: number | null;
 }
 
-export default function SessionScoreCard({ evaluation: e, bounty_wld }: Props) {
+export default function SessionScoreCard({ evaluation: e, bounty_wld, payout_wld }: Props) {
   const overallPct = Math.round(Number(e.overall_score) * 100);
   const passed = e.passed;
 
@@ -44,8 +45,8 @@ export default function SessionScoreCard({ evaluation: e, bounty_wld }: Props) {
             {overallPct}/100
           </span>
         </div>
-        {passed && bounty_wld != null && (
-          <span className="c-badge-amber">◈ {bounty_wld} WLD eligible</span>
+        {passed && (payout_wld != null || bounty_wld != null) && (
+          <span className="c-badge-amber">◈ {(payout_wld ?? bounty_wld ?? 0).toFixed(2)} WLD earned</span>
         )}
       </div>
 
@@ -56,6 +57,9 @@ export default function SessionScoreCard({ evaluation: e, bounty_wld }: Props) {
           <ScoreBar label="Rule compliance"      score={Number(e.rule_compliance_score)} reason={e.rule_compliance_reason}      passing={0.8} accentColor="var(--amber)" />
           <ScoreBar label="Human authenticity"   score={Number(e.ai_detection_score)}    reason={e.ai_detection_reason}         passing={0.7} />
           <ScoreBar label="Objective completion" score={Number(e.objective_completion)}  reason={e.objective_completion_reason} passing={0.5} />
+          <ScoreBar label="Conversation depth"   score={Number(e.conversation_depth_score)} reason={e.conversation_depth_reason} accentColor="var(--text)" />
+          <ScoreBar label="Edge-case coverage"   score={Number(e.edge_case_coverage_score)} reason={e.edge_case_coverage_reason} accentColor="var(--blue)" />
+          <ScoreBar label="Problem discovery"    score={Number(e.problem_discovery_score)} reason={e.problem_discovery_reason} accentColor="var(--fail)" />
         </div>
 
         {/* Judge assessment */}

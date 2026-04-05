@@ -6,6 +6,7 @@ import TaskFeedbackForm from "./TaskFeedbackForm";
 import StarRating from "@/components/StarRating";
 import CollapsiblePre from "@/components/CollapsiblePre";
 import TaskAiMeta from "@/components/tasks/TaskAiMeta";
+import { getRequestSessionUser } from "@/lib/auth/requestUser";
 import type { Task, Response } from "@/types/database";
 
 export const revalidate = 0;
@@ -16,6 +17,7 @@ interface Props {
 
 export default async function TaskDetailPage({ params }: Props) {
   const { id } = await params;
+  const currentUser = getRequestSessionUser();
 
   if (!hasSupabaseEnv()) {
     return (
@@ -132,7 +134,10 @@ export default async function TaskDetailPage({ params }: Props) {
 
           {/* Right: sticky form */}
           <div className="lg:sticky lg:top-20 animate-fade-up animate-delay-100">
-            <TaskFeedbackForm task={task} />
+            <TaskFeedbackForm
+              task={task}
+              initialNullifierHash={currentUser?.role === "worker" ? currentUser.world_id_nullifier_hash : null}
+            />
           </div>
         </div>
       </main>

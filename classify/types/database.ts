@@ -19,8 +19,17 @@ export interface Task {
   ai_output: string;
   criteria: string;
   bounty_wld: number;
+  max_responses: number;
   status: TaskStatus;
   created_at: string;
+  created_by_user_id?: string | null;
+  funded_pool_wld?: number;
+  remaining_pool_wld?: number;
+  funding_status?: "unfunded" | "funded" | "depleted";
+  funding_reference?: string | null;
+  funding_transaction_id?: string | null;
+  funding_wallet_address?: string | null;
+  funded_at?: string | null;
   /** Set after insert when Anthropic is configured (migration 002). */
   predicted_score?: number | null;
   prediction_rationale?: string | null;
@@ -38,6 +47,12 @@ export interface Response {
   created_at: string;
   flagged_suspicious?: boolean;
   time_to_submit_ms?: number | null;
+  payout_status?: "pending" | "paid" | "failed";
+  payout_wallet_address?: string | null;
+  payout_transaction_hash?: string | null;
+  payout_error?: string | null;
+  payout_attempted_at?: string | null;
+  payout_paid_at?: string | null;
 }
 
 export interface AppUser {
@@ -45,6 +60,9 @@ export interface AppUser {
   world_id_nullifier_hash: string;
   role: "worker" | "company" | "admin";
   auth_method: "world_id";
+  username?: string | null;
+  wallet_address?: string | null;
+  wallet_connected_at?: string | null;
   created_at: string;
   world_id_verified_at: string;
   last_sign_in_at: string;
@@ -78,11 +96,30 @@ export interface Database {
       };
       responses: {
         Row: Response;
-        Insert: Omit<Response, "id" | "created_at" | "paid" | "flagged_suspicious" | "time_to_submit_ms"> & {
+        Insert: Omit<
+          Response,
+          | "id"
+          | "created_at"
+          | "paid"
+          | "flagged_suspicious"
+          | "time_to_submit_ms"
+          | "payout_status"
+          | "payout_wallet_address"
+          | "payout_transaction_hash"
+          | "payout_error"
+          | "payout_attempted_at"
+          | "payout_paid_at"
+        > & {
           id?: string;
           paid?: boolean;
           flagged_suspicious?: boolean;
           time_to_submit_ms?: number | null;
+          payout_status?: "pending" | "paid" | "failed";
+          payout_wallet_address?: string | null;
+          payout_transaction_hash?: string | null;
+          payout_error?: string | null;
+          payout_attempted_at?: string | null;
+          payout_paid_at?: string | null;
         };
         Update: Partial<Omit<Response, "id" | "created_at">>;
         Relationships: [];

@@ -33,6 +33,7 @@ export interface AgentSession {
   nullifier_hash: string;
   status: AgentSessionStatus;
   payout_note: string | null;
+  payout_wld?: number | null;
   created_at: string;
 }
 
@@ -80,6 +81,12 @@ export interface SessionEvaluation {
   ai_detection_reason: string | null;
   objective_completion: number;
   objective_completion_reason: string | null;
+  conversation_depth_score: number;
+  conversation_depth_reason: string | null;
+  edge_case_coverage_score: number;
+  edge_case_coverage_reason: string | null;
+  problem_discovery_score: number;
+  problem_discovery_reason: string | null;
 
   hallucination_flags: HallucinationFlag[];
 
