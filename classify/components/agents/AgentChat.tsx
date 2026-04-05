@@ -61,14 +61,44 @@ export default function AgentChat({ agent, initialNullifierHash = null }: Props)
   }, [agent.id]);
 
   useEffect(() => {
-    const h = initialNullifierHash ?? getWorkerNullifier();
-    if (h) {
-      persistWorkerNullifier(h);
-      setNullifier(h);
-      startOrResume(h);
-    } else {
-      setBooting(false);
+    let active = true;
+
+    async function hydrate() {
+      const localHash = initialNullifierHash ?? getWorkerNullifier();
+      if (localHash) {
+        persistWorkerNullifier(localHash);
+        setNullifier(localHash);
+        await startOrResume(localHash);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const json = await res.json().catch(() => ({}));
+        if (!active) return;
+
+        const sessionHash =
+          typeof json?.user?.world_id_nullifier_hash === "string"
+            ? json.user.world_id_nullifier_hash
+            : null;
+
+        if (sessionHash) {
+          persistWorkerNullifier(sessionHash);
+          setNullifier(sessionHash);
+          await startOrResume(sessionHash);
+        } else {
+          setBooting(false);
+        }
+      } catch {
+        if (!active) return;
+        setBooting(false);
+      }
     }
+
+    hydrate();
+    return () => {
+      active = false;
+    };
   }, [initialNullifierHash, startOrResume]);
 
   useEffect(() => {

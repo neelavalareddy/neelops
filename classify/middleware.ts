@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEdgeSessionCookieName, parseSessionTokenEdge } from "@/lib/auth/session-edge";
 
-const PUBLIC_PAGE_PATHS = new Set(["/", "/login"]);
+const PUBLIC_PAGE_PATHS = new Set([
+  "/",
+  "/login",
+  "/agents",
+  "/tasks",
+  "/posted",
+]);
 const PUBLIC_API_PREFIXES = [
   "/api/verify",
   "/api/auth/me",
@@ -9,7 +15,6 @@ const PUBLIC_API_PREFIXES = [
   "/api/auth/god-mode",
   "/api/worldid/rp-context",
 ];
-
 function isPublicAsset(pathname: string): boolean {
   return (
     pathname.startsWith("/_next/") ||
@@ -26,6 +31,15 @@ function isPublicAsset(pathname: string): boolean {
 
 function isPublicApi(pathname: string): boolean {
   return PUBLIC_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+function isPublicPage(pathname: string): boolean {
+  return (
+    PUBLIC_PAGE_PATHS.has(pathname) ||
+    /^\/agents\/[^/]+$/.test(pathname) ||
+    /^\/tasks\/[^/]+$/.test(pathname) ||
+    /^\/agents\/[^/]+\/report$/.test(pathname)
+  );
 }
 
 export async function middleware(request: NextRequest) {
@@ -45,7 +59,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (isPublicAsset(pathname) || PUBLIC_PAGE_PATHS.has(pathname) || isPublicApi(pathname)) {
+  if (isPublicAsset(pathname) || isPublicPage(pathname) || isPublicApi(pathname)) {
     return NextResponse.next();
   }
 
