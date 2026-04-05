@@ -2,6 +2,9 @@
   "name": "classify",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "sh scripts/dev.sh",
     "build": "next build",
@@ -13,6 +16,7 @@
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.45.0",
     "@worldcoin/idkit": "^4.0.11",
+    "@worldcoin/idkit-core": "^4.1.0",
     "@worldcoin/minikit-js": "^2.0.2",
     "next": "14.2.5",
     "react": "^18",

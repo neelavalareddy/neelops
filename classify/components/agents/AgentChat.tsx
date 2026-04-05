@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
-import WorldIDButton from "@/components/WorldIDButton";
 import SessionScoreCard from "@/components/evaluation/SessionScoreCard";
 import { persistWorkerNullifier, getWorkerNullifier } from "@/lib/workerIdentity";
 import type { Agent, AgentMessage, AgentSession, SessionEvaluation } from "@/types/agents";
+
+const WorldIDButton = dynamic(() => import("@/components/WorldIDButton"), {
+  ssr: false,
+});
 
 type Msg = AgentMessage & {
   evaluation?: {

@@ -1,12 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import LinkWorldWalletButton from "@/components/LinkWorldWalletButton";
-import WorldIDButton from "@/components/WorldIDButton";
 import StarRating from "@/components/StarRating";
 import { persistWorkerNullifier } from "@/lib/workerIdentity";
 import type { Task } from "@/types/database";
+
+const WorldIDButton = dynamic(() => import("@/components/WorldIDButton"), {
+  ssr: false,
+});
 
 type Step = "verify" | "rate" | "submitting" | "done" | "error";
 

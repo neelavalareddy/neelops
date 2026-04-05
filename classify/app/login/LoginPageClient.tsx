@@ -1,9 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import NavBar from "@/components/NavBar";
-import WorldIDButton from "@/components/WorldIDButton";
+
+const WorldIDButton = dynamic(() => import("@/components/WorldIDButton"), {
+  ssr: false,
+});
 
 interface Props {
   nextPath: string;
