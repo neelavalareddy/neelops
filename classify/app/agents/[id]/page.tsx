@@ -91,14 +91,14 @@ export default async function AgentDetailPage({ params }: Props) {
         {/* Judge criteria reminder */}
         <div style={{ background: "var(--surface)", border: "1px solid var(--amber-border)", borderRadius: 10, padding: "14px 20px", marginBottom: 24 }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--amber)", marginBottom: 10 }}>
-            How the judge scores your session
+            How the judge scores — find failures to earn more
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
             {[
-              { label: "Human authenticity", threshold: "≥ 70%", color: "var(--pass)" },
-              { label: "Rule compliance", threshold: "≥ 80%", color: "var(--amber)" },
-              { label: "Objective relevance", threshold: "≥ 60%", color: "var(--blue)" },
-              { label: "Hallucinations logged", threshold: "All turns", color: "var(--fail)" },
+              { label: "Agent failures found", threshold: "≥ 25%", color: "var(--fail)" },
+              { label: "Attack breadth", threshold: "Rewarded", color: "var(--amber)" },
+              { label: "Human authenticity", threshold: "≥ 65%", color: "var(--pass)" },
+              { label: "Tester rule compliance", threshold: "≥ 75%", color: "var(--blue)" },
             ].map((c) => (
               <div key={c.label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ width: 3, height: 28, background: c.color, borderRadius: 2, flexShrink: 0 }} />
@@ -114,7 +114,7 @@ export default async function AgentDetailPage({ params }: Props) {
         {/* Chat */}
         <div>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-3)", marginBottom: 14 }}>
-            Live Session — min 3 turns required
+            Live Session — try to make the agent fail — min 3 turns required
           </div>
           <AgentChat agent={agent} />
         </div>

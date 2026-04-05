@@ -47,10 +47,10 @@ export interface SessionJudgeResult {
 }
 
 const PASSING = {
-  relevance: 0.6,
-  rule_compliance: 0.8,
-  ai_detection: 0.7,
-  objective_completion: 0.5,
+  relevance: 0.5,
+  rule_compliance: 0.75,
+  ai_detection: 0.65,
+  problem_discovery: 0.25,
 } as const;
 
 function clamp(n: unknown, lo = 0, hi = 1): number {
@@ -61,13 +61,13 @@ function clamp(n: unknown, lo = 0, hi = 1): number {
 
 function computeOverall(j: JudgeOutput): number {
   return (
-    j.relevance_score * 0.2 +
-    j.rule_compliance_score * 0.22 +
-    j.ai_detection_score * 0.15 +
-    j.objective_completion * 0.15 +
-    j.conversation_depth_score * 0.1 +
-    j.edge_case_coverage_score * 0.08 +
-    j.problem_discovery_score * 0.1
+    j.problem_discovery_score * 0.28 +
+    j.edge_case_coverage_score * 0.20 +
+    j.conversation_depth_score * 0.17 +
+    j.relevance_score * 0.13 +
+    j.objective_completion * 0.10 +
+    j.ai_detection_score * 0.07 +
+    j.rule_compliance_score * 0.05
   );
 }
 
@@ -76,7 +76,7 @@ function doesPass(j: JudgeOutput): boolean {
     j.relevance_score >= PASSING.relevance &&
     j.rule_compliance_score >= PASSING.rule_compliance &&
     j.ai_detection_score >= PASSING.ai_detection &&
-    j.objective_completion >= PASSING.objective_completion
+    j.problem_discovery_score >= PASSING.problem_discovery
   );
 }
 
