@@ -1,45 +1,16 @@
 /**
- * Anthropic Messages API (fetch). Set ANTHROPIC_API_KEY in env.
- * Optional ANTHROPIC_MODEL (default: fast Haiku for cost/latency in dev).
+ * LLM entrypoints: Anthropic cloud or local OpenAI-compatible API (see lib/ai/llm.ts).
  */
 
-const API = "https://api.anthropic.com/v1/messages";
+import { callLlmMultiTurn, callLlmSingleTurn, isLlmConfigured } from "@/lib/ai/llm";
 
+/** @deprecated use isLlmConfigured — kept for existing imports */
 export function isAnthropicConfigured(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  return isLlmConfigured();
 }
 
 export async function callClaude(system: string, user: string, maxTokens = 1024): Promise<string> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("ANTHROPIC_API_KEY is not set.");
-
-  const model = process.env.ANTHROPIC_MODEL?.trim() || "claude-3-5-haiku-20241022";
-
-  const res = await fetch(API, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: user }],
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Anthropic ${res.status}: ${errText.slice(0, 200)}`);
-  }
-
-  const data = (await res.json()) as {
-    content?: Array<{ type: string; text?: string }>;
-  };
-  const text = data.content?.find((b) => b.type === "text")?.text ?? "";
-  return text.trim();
+  return callLlmSingleTurn(system, user, maxTokens);
 }
 
 /** Multi-turn chat (company “agent” roleplay). */
@@ -48,36 +19,7 @@ export async function callClaudeConversation(
   messages: Array<{ role: "user" | "assistant"; content: string }>,
   maxTokens = 1024
 ): Promise<string> {
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) throw new Error("ANTHROPIC_API_KEY is not set.");
-
-  const model = process.env.ANTHROPIC_MODEL?.trim() || "claude-3-5-haiku-20241022";
-
-  const res = await fetch(API, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      system,
-      messages: messages.map((m) => ({ role: m.role, content: m.content.slice(0, 120000) })),
-    }),
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`Anthropic ${res.status}: ${errText.slice(0, 200)}`);
-  }
-
-  const data = (await res.json()) as {
-    content?: Array<{ type: string; text?: string }>;
-  };
-  const text = data.content?.find((b) => b.type === "text")?.text ?? "";
-  return text.trim();
+  return callLlmMultiTurn(system, messages, maxTokens);
 }
 
 export function parseJsonObject<T>(raw: string): T | null {
@@ -96,7 +38,7 @@ export async function predictTaskQuality(
   ai_output: string,
   criteria: string
 ): Promise<{ score: number; rationale: string } | null> {
-  if (!isAnthropicConfigured()) return null;
+  if (!isLlmConfigured()) return null;
 
   const system =
     "You predict how human evaluators will rate AI output on a 1–5 star scale before they see others' scores. " +
@@ -131,7 +73,7 @@ export async function extractConsensusInsights(
   criteria: string,
   feedbacks: Array<{ rating: number; text: string }>
 ): Promise<ConsensusInsights | null> {
-  if (!isAnthropicConfigured()) return null;
+  if (!isLlmConfigured()) return null;
   if (feedbacks.length < 5) return null;
 
   const system =

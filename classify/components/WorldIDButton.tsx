@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  IDKitWidget,
-  VerificationLevel,
-  type ISuccessResult,
-  type IErrorState,
+  IDKitRequestWidget,
+  orbLegacy,
+  type IDKitResult,
+  type IDKitErrorCodes,
+  type RpContext,
 } from "@worldcoin/idkit";
+import { extractWorldIdNullifier, getWorldIdEnvironment } from "@/lib/worldid";
 
 interface Props {
   taskId: string;
@@ -14,13 +16,36 @@ interface Props {
 }
 
 export default function WorldIDButton({ taskId, onVerified }: Props) {
+  const [open, setOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [hostError, setHostError] = useState<string | null>(null);
+  const [rpContext, setRpContext] = useState<RpContext | null>(null);
 
   const appId = process.env.NEXT_PUBLIC_WLD_APP_ID as `app_${string}` | undefined;
   const action = process.env.NEXT_PUBLIC_WLD_ACTION;
+  const environment = useMemo(() => getWorldIdEnvironment(appId), [appId]);
 
-  async function handleVerify(proof: ISuccessResult) {
+  async function loadRpContext() {
+    if (!action) {
+      throw new Error("World ID action is not configured.");
+    }
+    const response = await fetch("/api/worldid/rp-context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof payload?.error === "string" ? payload.error : "Could not create World ID request.");
+    }
+
+    const context = payload as RpContext;
+    setRpContext(context);
+    return context;
+  }
+
+  async function handleVerify(result: IDKitResult) {
     setScanning(true);
     setHostError(null);
     try {
@@ -28,9 +53,7 @@ export default function WorldIDButton({ taskId, onVerified }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          proof,
-          action,
-          signal: taskId,
+          idkitResponse: result,
         }),
       });
       if (!res.ok) {
@@ -42,14 +65,20 @@ export default function WorldIDButton({ taskId, onVerified }: Props) {
     }
   }
 
-  function onSuccess(result: ISuccessResult) {
+  function onSuccess(result: IDKitResult) {
     setHostError(null);
-    onVerified(result.nullifier_hash);
+    const nullifier = extractWorldIdNullifier(result);
+    if (!nullifier) {
+      setHostError("Verification succeeded but no nullifier was returned.");
+      return;
+    }
+    onVerified(nullifier);
   }
 
-  function onError(state: IErrorState) {
-    const msg = state.message ?? state.code ?? "Verification was not completed.";
+  function onError(state: IDKitErrorCodes) {
+    const msg = state ?? "Verification was not completed.";
     setHostError(msg);
+    setScanning(false);
   }
 
   if (!appId || !action) {
@@ -66,44 +95,56 @@ export default function WorldIDButton({ taskId, onVerified }: Props) {
 
   return (
     <div className="space-y-2">
-    <IDKitWidget
-      app_id={appId}
-      action={action}
-      signal={taskId}
-      verification_level={VerificationLevel.Device}
-      handleVerify={handleVerify}
-      onSuccess={onSuccess}
-      onError={onError}
-    >
-      {({ open }: { open: () => void }) => (
-        <button
-          type="button"
-          onClick={() => {
-            setHostError(null);
-            open();
-          }}
-          disabled={scanning}
-          className="wid-btn"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          {/* Iris animation */}
-          <span className="wid-iris" aria-hidden>
-            <span className="wid-ring wid-ring-1" />
-            <span className="wid-ring wid-ring-2" />
-            <span className="wid-ring wid-ring-3" />
-            <span className="wid-core" />
-          </span>
+      {rpContext ? (
+        <IDKitRequestWidget
+          open={open}
+          onOpenChange={setOpen}
+          app_id={appId}
+          action={action}
+          rp_context={rpContext}
+          allow_legacy_proofs={true}
+          environment={environment}
+          preset={orbLegacy({ signal: taskId })}
+          handleVerify={handleVerify}
+          onSuccess={onSuccess}
+          onError={onError}
+        />
+      ) : null}
+      <button
+        type="button"
+        onClick={async () => {
+          setHostError(null);
+          try {
+            if (!rpContext) {
+              await loadRpContext();
+            }
+            setOpen(true);
+          } catch (error) {
+            setHostError(error instanceof Error ? error.message : "Could not start World ID verification.");
+          }
+        }}
+        disabled={scanning}
+        className="wid-btn"
+        style={{ fontFamily: "var(--font-body)" }}
+      >
+        {/* Iris animation */}
+        <span className="wid-iris" aria-hidden>
+          <span className="wid-ring wid-ring-1" />
+          <span className="wid-ring wid-ring-2" />
+          <span className="wid-ring wid-ring-3" />
+          <span className="wid-core" />
+        </span>
 
-          <span className="flex flex-col items-start">
-            <span className="text-sm font-semibold leading-tight" style={{ color: "var(--signal)" }}>
-              {scanning ? "Verifying on server…" : "Verify with World ID"}
-            </span>
-            <span className="text-xs leading-tight" style={{ color: "var(--text-muted)" }}>
-              Prove you&apos;re a unique human
-            </span>
+        <span className="flex flex-col items-start">
+          <span className="text-sm font-semibold leading-tight" style={{ color: "var(--signal)" }}>
+            {scanning ? "Verifying on server…" : "Verify with World ID"}
           </span>
+          <span className="text-xs leading-tight" style={{ color: "var(--text-muted)" }}>
+            Prove you&apos;re a unique human
+          </span>
+        </span>
 
-          <style>{`
+        <style>{`
             .wid-btn {
               display: flex;
               width: 100%;
@@ -148,14 +189,12 @@ export default function WorldIDButton({ taskId, onVerified }: Props) {
               z-index: 1;
             }
           `}</style>
-        </button>
+      </button>
+      {hostError && (
+        <p className="text-xs" style={{ color: "var(--red)" }} role="alert">
+          {hostError}
+        </p>
       )}
-    </IDKitWidget>
-    {hostError && (
-      <p className="text-xs" style={{ color: "var(--red)" }} role="alert">
-        {hostError}
-      </p>
-    )}
     </div>
   );
 }

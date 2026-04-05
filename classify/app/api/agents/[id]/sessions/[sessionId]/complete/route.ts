@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
-import type { Agent, AgentMessage, AgentMessageEvaluation, AgentSession } from "@/types/agents";
+import { judgeSession } from "@/lib/ai/judge/engine";
+import type { Agent, AgentMessage, AgentSession } from "@/types/agents";
 
 interface Ctx {
   params: { id: string; sessionId: string };
 }
-
-const MIN_USER_MESSAGES = 2;
-const MIN_AVG_RELEVANCE = 3;
-const MAX_AI_LIKELIHOOD = 0.72;
 
 export async function POST(request: Request, { params }: Ctx) {
   try {
@@ -17,7 +14,7 @@ export async function POST(request: Request, { params }: Ctx) {
     }
 
     const { id: agent_id, sessionId: session_id } = params;
-    const { nullifier_hash } = await request.json() as { nullifier_hash?: string };
+    const { nullifier_hash } = (await request.json()) as { nullifier_hash?: string };
 
     if (!nullifier_hash?.trim()) {
       return NextResponse.json({ error: "nullifier_hash is required." }, { status: 400 });
@@ -25,19 +22,17 @@ export async function POST(request: Request, { params }: Ctx) {
 
     const supabase = createServiceClient();
 
-    const { data: session, error: sErr } = await supabase
+    const { data: session, error: sErr } = (await supabase
       .from("agent_sessions")
       .select("*")
       .eq("id", session_id)
-      .single() as { data: AgentSession | null; error: unknown };
+      .single()) as { data: AgentSession | null; error: unknown };
 
     if (sErr || !session) return NextResponse.json({ error: "Session not found." }, { status: 404 });
-    if (session.agent_id !== agent_id) {
+    if (session.agent_id !== agent_id)
       return NextResponse.json({ error: "Session mismatch." }, { status: 400 });
-    }
-    if (session.nullifier_hash !== nullifier_hash.trim()) {
+    if (session.nullifier_hash !== nullifier_hash.trim())
       return NextResponse.json({ error: "Not your session." }, { status: 403 });
-    }
     if (session.status !== "active") {
       return NextResponse.json(
         { error: "Session already finalized.", status: session.status },
@@ -45,91 +40,113 @@ export async function POST(request: Request, { params }: Ctx) {
       );
     }
 
-    const { data: userMsgs } = await supabase
+    const { data: agent } = (await supabase
+      .from("agents")
+      .select("*")
+      .eq("id", agent_id)
+      .single()) as { data: Agent | null; error: unknown };
+
+    if (!agent) return NextResponse.json({ error: "Agent not found." }, { status: 404 });
+
+    const { data: allMsgs } = (await supabase
       .from("agent_messages")
       .select("*")
       .eq("session_id", session_id)
-      .eq("role", "user")
-      .order("created_at", { ascending: true }) as { data: AgentMessage[] | null };
+      .order("created_at", { ascending: true })) as { data: AgentMessage[] | null };
 
-    const users = userMsgs ?? [];
-    if (users.length < MIN_USER_MESSAGES) {
-      return NextResponse.json(
-        {
-          ok: false,
-          reason: `Need at least ${MIN_USER_MESSAGES} user messages before requesting payout.`,
-        },
-        { status: 400 }
-      );
-    }
+    const allMessages = allMsgs ?? [];
+    const userMessages = allMessages.filter((m) => m.role === "user");
 
-    const ids = users.map((m) => m.id);
-    const { data: evalRows } = await supabase
-      .from("agent_message_evaluations")
-      .select("*")
-      .in("message_id", ids) as { data: AgentMessageEvaluation[] | null };
+    const result = await judgeSession(agent, allMessages, userMessages);
 
-    const byId = Object.fromEntries((evalRows ?? []).map((e) => [e.message_id, e]));
-    const missing = users.filter((m) => !byId[m.id]);
-    if (missing.length > 0) {
-      return NextResponse.json({ ok: false, reason: "Some messages are not evaluated yet." }, { status: 500 });
-    }
+    const newStatus = result.passed ? "eligible" : "rejected";
+    const payout_note = result.passed
+      ? `Passed Classify judge (score ${(result.overall_score * 10).toFixed(1)}/10) — bounty eligible.`
+      : `Rejected: ${result.overall_assessment?.slice(0, 200) ?? "Did not meet passing criteria."}`;
 
-    const evs = users.map((m) => byId[m.id]!);
-    const anyRuleBreak = evs.some((e) => !e.rules_compliant);
-    const avgRel = evs.reduce((s, e) => s + e.relevance_1_5, 0) / evs.length;
-    const maxAi = Math.max(...evs.map((e) => Number(e.ai_likelihood_0_1)));
+    // Persist evaluation and update session status in parallel
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await Promise.all([
+      (supabase as any).from("session_evaluations").upsert({
+        session_id,
+        relevance_score: result.relevance_score,
+        relevance_reason: result.relevance_reason,
+        rule_compliance_score: result.rule_compliance_score,
+        rule_compliance_reason: result.rule_compliance_reason,
+        ai_detection_score: result.ai_detection_score,
+        ai_detection_reason: result.ai_detection_reason,
+        objective_completion: result.objective_completion,
+        objective_completion_reason: result.objective_completion_reason,
+        hallucination_flags: result.hallucination_flags,
+        overall_score: result.overall_score,
+        overall_assessment: result.overall_assessment,
+        passed: result.passed,
+        judge_model: result.judge_model,
+        judge_reasoning: result.judge_reasoning,
+        secondary_judge_model: result.secondary_judge_model,
+        secondary_judge_agreed: result.secondary_judge_agreed,
+        precheck_flags: result.precheck_flags,
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("agent_sessions")
+        .update({ status: newStatus, payout_note })
+        .eq("id", session_id),
+    ]);
 
-    const failures: string[] = [];
-    if (anyRuleBreak) failures.push("One or more messages broke stated rules.");
-    if (avgRel < MIN_AVG_RELEVANCE) {
-      failures.push(
-        `Average relevance ${avgRel.toFixed(2)} is below required ${MIN_AVG_RELEVANCE}.`
-      );
-    }
-    if (maxAi > MAX_AI_LIKELIHOOD) {
-      failures.push(
-        `AI-likelihood too high on at least one turn (max ${maxAi.toFixed(2)} > ${MAX_AI_LIKELIHOOD}).`
-      );
-    }
+    // Update agent-level stats after session is finalized
+    if (result.passed) {
+      const { data: eligibleSessions } = await supabase
+        .from("agent_sessions")
+        .select("id")
+        .eq("agent_id", agent_id)
+        .eq("status", "eligible");
 
-    const { data: agent } = await supabase
-      .from("agents")
-      .select("bounty_wld")
-      .eq("id", agent_id)
-      .single() as { data: Pick<Agent, "bounty_wld"> | null };
+      const passedSessionIds = (eligibleSessions ?? []).map((s: { id: string }) => s.id);
+      const completedCount = passedSessionIds.length;
 
-    const bounty = agent?.bounty_wld ?? 0;
+      let newAvgScore = result.overall_score;
+      if (passedSessionIds.length > 0) {
+        const { data: scores } = await supabase
+          .from("session_evaluations")
+          .select("overall_score")
+          .in("session_id", passedSessionIds);
 
-    if (failures.length > 0) {
-      const note = failures.join(" ");
+        const allScores = (scores ?? []).map((r: { overall_score: number }) => Number(r.overall_score));
+        if (allScores.length > 0) {
+          newAvgScore = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+        }
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (supabase as any)
-        .from("agent_sessions")
-        .update({ status: "rejected", payout_note: note })
-        .eq("id", session_id);
-
-      return NextResponse.json({
-        ok: false,
-        status: "rejected",
-        reasons: failures,
-        payout_note: note,
-        bounty_wld: bounty,
-      });
+        .from("agents")
+        .update({
+          tests_completed: completedCount,
+          avg_score: Math.round(newAvgScore * 1000) / 1000,
+        })
+        .eq("id", agent_id);
     }
 
-    const note = "Passed Classify checks — bounty eligible (WLD transfer still mocked in this app).";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabase as any)
-      .from("agent_sessions")
-      .update({ status: "eligible", payout_note: note })
-      .eq("id", session_id);
-
     return NextResponse.json({
-      ok: true,
-      status: "eligible",
-      payout_note: note,
-      bounty_wld: bounty,
+      ok: result.passed,
+      status: newStatus,
+      payout_note,
+      bounty_wld: agent.bounty_wld,
+      evaluation: {
+        relevance_score: result.relevance_score,
+        rule_compliance_score: result.rule_compliance_score,
+        ai_detection_score: result.ai_detection_score,
+        objective_completion: result.objective_completion,
+        hallucination_flags: result.hallucination_flags,
+        overall_score: result.overall_score,
+        overall_assessment: result.overall_assessment,
+        passed: result.passed,
+        judge_model: result.judge_model,
+        secondary_judge_model: result.secondary_judge_model,
+        secondary_judge_agreed: result.secondary_judge_agreed,
+        precheck_flags: result.precheck_flags,
+      },
     });
   } catch (e) {
     console.error("[agent complete POST]", e);

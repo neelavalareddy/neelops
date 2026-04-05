@@ -1,55 +1,137 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import BrandLogo from "@/components/BrandLogo";
+import type { SessionUser } from "@/lib/auth/session";
 
 export default function NavBar() {
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadUser() {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const json = await res.json().catch(() => ({}));
+        if (!active) return;
+        setCurrentUser(json?.user ?? null);
+      } catch {
+        if (active) setCurrentUser(null);
+      }
+    }
+
+    loadUser();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const navLinkStyle = {
+    padding: "7px 12px",
+    borderRadius: 8,
+    fontFamily: "var(--font-body)",
+    fontSize: 13,
+    fontWeight: 500,
+    color: "var(--text-2)",
+    textDecoration: "none",
+    transition: "color 0.15s, background 0.15s",
+  } as const;
+
   return (
-    <header className="sticky top-0 z-50 border-b nav-bar">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-5">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="nav-logo-mark">
-            <span className="font-display text-lg leading-none" style={{ color: "var(--signal)" }}>C</span>
+    <header style={{
+      position: "sticky", top: 0, zIndex: 50,
+      borderBottom: "1px solid var(--border)",
+      background: "rgba(11,16,32,0.92)",
+      backdropFilter: "blur(20px)",
+      WebkitBackdropFilter: "blur(20px)",
+    }}>
+      <div style={{
+        maxWidth: 1152, margin: "0 auto",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        minHeight: 62, padding: "10px 20px",
+        gap: 16,
+      }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+          <div style={{
+            width: 22, height: 34,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flex: "0 0 auto",
+          }}>
+            <BrandLogo size={22} />
           </div>
-          <span className="font-display text-xl tracking-wider text-white">CLASSIFY</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            <span style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 16,
+              fontWeight: 700,
+              color: "var(--text)",
+              letterSpacing: "-0.01em",
+              lineHeight: 1.1,
+            }}>Classify</span>
+            <span style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 10,
+              color: "var(--text-3)",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              lineHeight: 1.1,
+            }}>Catch hallucinations pre-prod</span>
+          </div>
         </Link>
 
-        <nav className="flex flex-wrap items-center justify-end gap-0.5 sm:gap-1">
-          <Link href="/agents" className="nav-link">Agents</Link>
-          <Link href="/tasks" className="nav-link">Tasks</Link>
-          <Link href="/dashboard" className="nav-link">Dashboard</Link>
-          <Link href="/posted" className="nav-link hidden sm:inline">Posted</Link>
-          <Link href="/agents/new" className="nav-link hidden md:inline">List agent</Link>
-          <Link href="/post" className="c-btn-primary ml-1 sm:ml-2 py-2 text-xs">
-            Post task
+        <nav style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {[
+            { href: "/agents", label: "Agents" },
+            { href: "/tasks", label: "Tasks" },
+            { href: "/dashboard", label: "Dashboard" },
+          ].map(({ href, label }) => (
+            <Link key={href} href={href} style={navLinkStyle}>
+              {label}
+            </Link>
+          ))}
+          {currentUser ? (
+            <>
+              <div
+                style={{
+                  marginLeft: 8,
+                  padding: "7px 12px",
+                  borderRadius: 999,
+                  border: "1px solid var(--border)",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  color: "var(--pass)",
+                  background: "rgba(97, 245, 163, 0.08)",
+                }}
+              >
+                World ID {currentUser.id.slice(0, 8)}
+              </div>
+              <form method="POST" action="/api/auth/logout">
+                <button
+                  type="submit"
+                  style={{
+                    padding: "7px 12px",
+                    borderRadius: 8,
+                    fontFamily: "var(--font-body)",
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: "var(--text-2)",
+                    background: "transparent",
+                    border: "1px solid var(--border)",
+                    cursor: "pointer",
+                  }}
+                >
+                  Sign out
+                </button>
+              </form>
+            </>
+          ) : null}
+          <Link href="/agents/new" className="c-btn-primary" style={{ marginLeft: 8, padding: "7px 14px", fontSize: 12 }}>
+            Connect Agent
           </Link>
         </nav>
       </div>
-
-      <style>{`
-        .nav-bar {
-          border-color: var(--border);
-          background: rgba(5,5,7,0.88);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-        }
-        .nav-logo-mark {
-          position: relative;
-          width: 32px; height: 32px;
-          display: flex; align-items: center; justify-content: center;
-          border-radius: 8px;
-          background: var(--signal-dim);
-          border: 1px solid var(--signal-border);
-        }
-        .nav-link {
-          border-radius: 8px;
-          padding: 6px 12px;
-          font-size: 0.875rem;
-          color: var(--text-dim);
-          transition: color 0.15s, background 0.15s;
-        }
-        .nav-link:hover {
-          color: var(--text);
-          background: rgba(255,255,255,0.05);
-        }
-      `}</style>
     </header>
   );
 }

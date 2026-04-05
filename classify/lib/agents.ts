@@ -1,0 +1,16 @@
+export const PUBLIC_AGENT_SELECT = [
+  "id",
+  "company_name",
+  "name",
+  "objective",
+  "rules",
+  "persona",
+  "bounty_wld",
+  "connection_mode",
+  "endpoint_base_url",
+  "endpoint_model",
+  "status",
+  "tests_completed",
+  "avg_score",
+  "created_at",
+].join(", ");

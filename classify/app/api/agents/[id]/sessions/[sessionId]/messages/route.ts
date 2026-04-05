@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { PUBLIC_AGENT_SELECT } from "@/lib/agents";
 import { generateCompanyAgentReply } from "@/lib/ai/companyAgentReply";
 import { evaluateAgentUserMessage } from "@/lib/ai/classifyAgentEval";
 import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
-import type { Agent, AgentMessage, AgentSession } from "@/types/agents";
+import type { Agent, AgentConnectionSecret, AgentMessage, AgentSession } from "@/types/agents";
 
 interface Ctx {
   params: { id: string; sessionId: string };
@@ -56,7 +57,7 @@ export async function POST(request: Request, { params }: Ctx) {
 
     const { data: agent, error: aErr } = await supabase
       .from("agents")
-      .select("*")
+      .select(PUBLIC_AGENT_SELECT)
       .eq("id", agent_id)
       .single() as { data: Agent | null; error: unknown };
 
@@ -104,7 +105,17 @@ export async function POST(request: Request, { params }: Ctx) {
       { role: "user", content: text },
     ];
 
-    const assistantText = await generateCompanyAgentReply(agent, historyForAgent);
+    let endpointApiKey: string | null = null;
+    if (agent.connection_mode === "openai_compatible") {
+      const { data: secret } = await supabase
+        .from("agent_connection_secrets")
+        .select("endpoint_api_key, agent_id, created_at")
+        .eq("agent_id", agent_id)
+        .maybeSingle() as { data: AgentConnectionSecret | null };
+      endpointApiKey = secret?.endpoint_api_key ?? null;
+    }
+
+    const assistantText = await generateCompanyAgentReply(agent, historyForAgent, endpointApiKey);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: asstRow, error: asErr } = await (supabase as any)

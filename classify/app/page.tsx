@@ -1,260 +1,415 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
-import ApiEndpointsPanel from "@/components/landing/ApiEndpointsPanel";
-import FeatureAccordion from "@/components/landing/FeatureAccordion";
-import HeroParallaxOrb from "@/components/landing/HeroParallaxOrb";
-import LandingRoleToggle from "@/components/landing/LandingRoleToggle";
-import LiveMarketplacePreview from "@/components/landing/LiveMarketplacePreview";
+import styles from "./page.module.css";
+import BrandLogo from "@/components/BrandLogo";
 
-const COMPANY_STEPS = [
-  { n: "01", title: "Post a Task", body: "Paste your AI output, write evaluation criteria, set a WLD bounty per response." },
-  { n: "02", title: "Workers Evaluate", body: "Verified humans review your content and submit structured 1–5 star feedback." },
-  { n: "03", title: "Review Results", body: "See aggregated scores, average ratings, and every raw response in your dashboard." },
+const FLOW_STEPS = [
+  {
+    n: "01",
+    who: "Company",
+    title: "Publish what needs testing",
+    body: "List a full AI agent for live conversations or post a single AI output for structured review.",
+    accent: "var(--blue)",
+  },
+  {
+    n: "02",
+    who: "Tester",
+    title: "Generate real evaluation signal",
+    body: "Humans either stress-test the agent in chat or review the output directly against the task criteria.",
+    accent: "var(--pass)",
+  },
+  {
+    n: "03",
+    who: "Classify Judge",
+    title: "Score and organize the result",
+    body: "The platform decides what is valid, flags failures, and turns the interaction into usable evidence for the team.",
+    accent: "var(--amber)",
+  },
 ];
 
-const WORKER_STEPS = [
-  { n: "01", title: "Verify Identity", body: "One World ID proof. Prove you're human. Your identity stays private." },
-  { n: "02", title: "Pick a Task", body: "Browse the open task board. Each shows the bounty, criteria, and response count." },
-  { n: "03", title: "Rate & Earn", body: "Submit honest feedback. WLD lands in your wallet immediately." },
+const HERO_METRICS = [
+  { value: "agent", label: "live conversation testing" },
+  { value: "output", label: "single-response review" },
+  { value: "judge", label: "scored evaluation layer" },
+];
+
+const TRUST_POINTS = [
+  "Human review flows",
+  "Multi-model judgment",
+  "Hallucination flags",
+  "Report-ready evidence",
+];
+
+const PRODUCT_SURFACES = [
+  {
+    title: "Agent Testing",
+    body: "Companies publish an AI agent and testers interact with it through a built-in chat interface.",
+  },
+  {
+    title: "Output Review",
+    body: "Teams can also post a single AI response, summary, or code snippet for direct human evaluation.",
+  },
+  {
+    title: "Judge Engine",
+    body: "Classify scores relevance, rule compliance, authenticity, and failure patterns before treating work as high-signal.",
+  },
+  {
+    title: "Reports",
+    body: "Results roll up into structured findings companies can use before shipping to real users.",
+  },
+];
+
+const JUDGE_CRITERIA = [
+  {
+    id: "01",
+    label: "Human Authenticity",
+    desc: "Is the work coming from a real human rather than low-effort automation or templated spam?",
+    color: "var(--pass)",
+    threshold: ">= 70%",
+  },
+  {
+    id: "02",
+    label: "Rule Compliance",
+    desc: "Did the tester stay inside the rules the company defined for the task or session?",
+    color: "var(--amber)",
+    threshold: ">= 80%",
+  },
+  {
+    id: "03",
+    label: "Objective Relevance",
+    desc: "Was the work actually aimed at the stated objective, rather than filler or noise?",
+    color: "var(--blue)",
+    threshold: ">= 60%",
+  },
+  {
+    id: "04",
+    label: "Failure Capture",
+    desc: "Did the session or review reveal unsupported claims, contradictions, or hallucination patterns worth logging?",
+    color: "var(--fail)",
+    threshold: "logged",
+  },
+];
+
+const COMPANY_POINTS = [
+  "Run live adversarial testing against full AI agents",
+  "Collect ratings and written feedback on single outputs",
+  "Capture transcripts, criteria scores, and flagged failures",
+  "Give product teams evidence they can actually act on",
+];
+
+const TESTER_POINTS = [
+  "Choose either live agent sessions or output-review tasks",
+  "Do real evaluation work instead of fake engagement loops",
+  "Earn when the submission is relevant, useful, and valid",
+  "Build reputation by surfacing signal, not noise",
+];
+
+const LIVE_ENTRY_POINTS = [
+  {
+    title: "Browse Agents",
+    body: "Open the main marketplace for live AI agent testing.",
+    href: "/agents",
+    cta: "Open agents",
+  },
+  {
+    title: "Publish An Agent",
+    body: "Create a listing with objective, rules, persona, and payout.",
+    href: "/agents/new",
+    cta: "Create listing",
+  },
+  {
+    title: "Use The Task Sandbox",
+    body: "Review single AI outputs with ratings and written feedback.",
+    href: "/tasks",
+    cta: "Open tasks",
+  },
 ];
 
 export default function LandingPage() {
   return (
-    <div className="relative overflow-x-hidden">
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <div className={styles.shell}>
+          <div className={styles.headerInner}>
+            <Link href="/" className={styles.brand}>
+              <div className={styles.brandMark}>
+                <BrandLogo className={styles.brandLogo} size={34} />
+              </div>
+              <div>
+                <p className={styles.brandName}>Classify</p>
+                <p className={styles.brandTag}>Catch hallucinations pre-prod</p>
+              </div>
+            </Link>
 
-      {/* NAV */}
-      <header className="landing-nav">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="logo-mark">
-              <span className="font-display text-lg leading-none" style={{ color: "var(--signal)" }}>C</span>
-            </div>
-            <span className="font-display text-xl tracking-wider text-white">CLASSIFY</span>
-          </Link>
-          <div className="flex items-center gap-1 sm:gap-2">
-            <a href="#live-market" className="lnav-link text-sm hidden sm:inline">
-              Live
-            </a>
-            <a href="#api" className="lnav-link text-sm hidden md:inline">
-              API
-            </a>
-            <Link href="/tasks" className="lnav-link text-sm">Browse Tasks</Link>
-            <Link href="/post" className="c-btn-primary py-2 text-xs">Post a Task</Link>
+            <nav className={styles.nav}>
+              <Link href="/agents" className={styles.navLink}>
+                Browse Agents
+              </Link>
+              <Link href="/tasks" className={styles.navLink}>
+                Tasks
+              </Link>
+              <Link href="/agents/new" className="c-btn-primary">
+                Connect Agent
+              </Link>
+            </nav>
           </div>
         </div>
       </header>
 
-      {/* HERO */}
-      <section className="hero-section">
-        <div className="hero-glow-l" aria-hidden />
-        <div className="hero-glow-r" aria-hidden />
+      <main>
+        <section className={styles.heroSection}>
+          <div className={styles.heroGlow} aria-hidden />
+          <div className={styles.heroGrid}>
+            <div className={`${styles.heroCopy} animate-fade-up`}>
+              <div className={`${styles.kicker} c-pill`}>AI evaluation platform</div>
 
-        <div className="relative z-10 max-w-6xl mx-auto px-6 py-24 lg:py-32 grid lg:grid-cols-[1fr_400px] gap-12 items-center">
-          <div>
-            <div className="c-pill mb-6">Powered by World ID · WLD Payments</div>
+              <h1 className={styles.heroTitle}>
+                Test agents, review outputs, <span className={styles.heroAccent}>catch failures before launch.</span>
+              </h1>
 
-            <h1 className="hero-hed">
-              HUMAN<br />
-              FEEDBACK,<br />
-              <span className="hero-hed-outline">PROVABLY<br />REAL.</span>
-            </h1>
+              <p className={styles.heroText}>
+                Classify gives teams one place to evaluate both full AI agents and individual AI outputs.
+                Real humans generate signal, the judge scores the work, and the results come back as something a company can use.
+              </p>
 
-            <div className="mt-6">
-              <LandingRoleToggle />
-            </div>
+              <div className={styles.heroActions}>
+                <Link href="/agents/new" className="c-btn-primary">
+                  Publish Something
+                </Link>
+                <Link href="/agents" className="c-btn-ghost">
+                  Explore Marketplace
+                </Link>
+              </div>
 
-            <div className="trust-bar">
-              {["Sybil-resistant", "World ID verified", "WLD bounties", "No signup"].map((item, i) => (
-                <span key={item} className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                  {i > 0 && <span style={{ width: 1, height: 12, background: "var(--border-strong)", display: "inline-block" }} />}
-                  <svg width="9" height="9" viewBox="0 0 9 9" aria-hidden>
-                    <polyline points="1,4.5 3.5,7 8,1.5" stroke="var(--signal)" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <HeroParallaxOrb />
-        </div>
-      </section>
-
-      {/* TICKER */}
-      <div className="ticker-wrap" aria-hidden>
-        <div className="ticker-track">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <span key={i} className="ticker-seg">
-              WORLD ID VERIFIED <span style={{ color: "var(--signal)", margin: "0 16px" }}>◈</span>
-              HUMAN FEEDBACK <span style={{ color: "var(--signal)", margin: "0 16px" }}>◈</span>
-              WLD PAYMENTS <span style={{ color: "var(--signal)", margin: "0 16px" }}>◈</span>
-              SYBIL RESISTANT <span style={{ color: "var(--signal)", margin: "0 16px" }}>◈</span>
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <LiveMarketplacePreview />
-
-      <FeatureAccordion />
-
-      {/* HOW IT WORKS */}
-      <section className="max-w-6xl mx-auto px-6 pb-24">
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Company */}
-          <div className="how-card">
-            <div className="how-tag" style={{ color: "var(--signal)", borderColor: "var(--signal-border)", background: "var(--signal-dim)" }}>FOR COMPANIES</div>
-            <h3 className="font-display text-3xl text-white tracking-wider mb-8">GET REAL HUMAN EVALS</h3>
-            <div className="space-y-6">
-              {COMPANY_STEPS.map((s) => (
-                <div key={s.n} className="flex gap-4">
-                  <span className="font-display text-5xl leading-none" style={{ color: "transparent", WebkitTextStroke: "1px rgba(0,255,135,0.2)", flexShrink: 0, width: 52 }}>{s.n}</span>
-                  <div className="pt-2">
-                    <p className="text-sm font-semibold text-white mb-0.5">{s.title}</p>
-                    <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>{s.body}</p>
+              <div className={styles.metricRow}>
+                {HERO_METRICS.map((metric) => (
+                  <div key={metric.label} className={styles.metricCard}>
+                    <div className={styles.metricValue}>{metric.value}</div>
+                    <div className={styles.metricLabel}>{metric.label}</div>
                   </div>
-                </div>
-              ))}
-            </div>
-            <Link href="/post" className="c-btn-primary mt-8 w-full justify-center py-3">Post your first task →</Link>
-          </div>
+                ))}
+              </div>
 
-          {/* Worker */}
-          <div className="how-card" style={{ background: "rgba(240,180,41,0.015)" }}>
-            <div className="how-tag" style={{ color: "var(--gold)", borderColor: "var(--gold-border)", background: "var(--gold-dim)" }}>FOR WORKERS</div>
-            <h3 className="font-display text-3xl text-white tracking-wider mb-8">EARN WLD FOR YOUR TIME</h3>
-            <div className="space-y-6">
-              {WORKER_STEPS.map((s) => (
-                <div key={s.n} className="flex gap-4">
-                  <span className="font-display text-5xl leading-none" style={{ color: "transparent", WebkitTextStroke: "1px rgba(240,180,41,0.22)", flexShrink: 0, width: 52 }}>{s.n}</span>
-                  <div className="pt-2">
-                    <p className="text-sm font-semibold text-white mb-0.5">{s.title}</p>
-                    <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>{s.body}</p>
+              <div className={styles.trustList}>
+                {TRUST_POINTS.map((item) => (
+                  <span key={item} className={styles.trustItem}>
+                    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+                      <polyline
+                        points="1.2,5.2 3.8,7.7 8.8,2.2"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        fill="none"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className={`${styles.heroPanel} animate-fade-up animate-delay-200`}>
+              <div className={styles.signalCard}>
+                <div className={styles.signalHeader}>
+                  <div>
+                    <p className={styles.signalLabel}>Platform loop</p>
+                    <h2 className={styles.signalTitle}>Human evaluation, organized for shipping teams.</h2>
                   </div>
+                  <div className={styles.signalBadge}>Judge-backed</div>
                 </div>
-              ))}
+
+                <div className={styles.signalSurface}>
+                  <div className={styles.signalRail} aria-hidden />
+                  {FLOW_STEPS.map((step) => (
+                    <article
+                      key={step.n}
+                      className={styles.stepCard}
+                      style={{ "--step-accent": step.accent } as CSSProperties}
+                    >
+                      <div className={styles.stepIndex}>
+                        <span className={styles.stepWho}>{step.who}</span>
+                        <span className={styles.stepNumber}>{step.n}</span>
+                      </div>
+                      <div>
+                        <h3 className={styles.stepTitle}>{step.title}</h3>
+                        <p className={styles.stepBody}>{step.body}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
             </div>
-            <Link href="/tasks" className="c-btn-gold mt-8 w-full justify-center py-3">Browse open tasks →</Link>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <ApiEndpointsPanel />
-
-      {/* BOTTOM CTA */}
-      <section style={{ position: "relative", overflow: "hidden" }}>
-        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 50%, rgba(0,255,135,0.045) 0%, transparent 65%)", pointerEvents: "none" }} aria-hidden />
-        <div className="relative z-10 text-center max-w-2xl mx-auto px-6 py-32">
-          <div className="iris-container mx-auto mb-8" style={{ width: 80, height: 80 }} aria-hidden>
-            <div className="iris-ring iris-ring-1" />
-            <div className="iris-ring iris-ring-2" />
-            <div className="iris-ring iris-ring-3" />
-            <div className="iris-core" />
+        <section className={`${styles.shell} ${styles.section}`}>
+          <div className={styles.sectionIntro}>
+            <div className={styles.sectionEyebrow}>What Classify Covers</div>
+            <h2 className={styles.sectionTitle}>
+              One product, two evaluation surfaces.
+            </h2>
+            <p className={styles.sectionText}>
+              The core idea is simple: some teams need full conversational testing, while others just need feedback on a single output.
+              Classify supports both without changing the reporting and judgment layer.
+            </p>
           </div>
-          <h2 className="font-display text-white leading-tight mb-4" style={{ fontSize: "clamp(3rem,8vw,5.5rem)", letterSpacing: "0.03em" }}>
-            READY TO<br />CLASSIFY?
-          </h2>
-          <p className="text-sm mb-10" style={{ color: "var(--text-muted)" }}>
-            The only feedback marketplace where every rater is provably human.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/post" className="c-btn-primary px-8 py-3.5 text-sm justify-center">Post a Task →</Link>
-            <Link href="/tasks" className="c-btn-ghost px-8 py-3.5 text-sm justify-center">Start Earning</Link>
-          </div>
-        </div>
-      </section>
 
-      {/* FOOTER */}
-      <footer style={{ borderTop: "1px solid var(--border)", padding: "28px 0" }}>
-        <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="logo-mark" style={{ width: 24, height: 24, borderRadius: 6 }}>
-              <span className="font-display text-sm leading-none" style={{ color: "var(--signal)" }}>C</span>
+          <div className={styles.pillarGrid}>
+            {PRODUCT_SURFACES.map((pillar) => (
+              <article key={pillar.title} className={styles.pillarCard}>
+                <h3 className={styles.pillarTitle}>{pillar.title}</h3>
+                <p className={styles.pillarText}>{pillar.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className={`${styles.shell} ${styles.section}`}>
+          <div className={styles.sectionIntro}>
+            <div className={styles.sectionEyebrow}>How Judgment Works</div>
+            <h2 className={styles.sectionTitle}>
+              Every submission is scored for quality, not just volume.
+            </h2>
+            <p className={styles.sectionText}>
+              The platform is built to reward useful evaluation signal. Whether the work is a live session or a one-off output review,
+              Classify focuses on relevance, compliance, authenticity, and whether the work exposed something meaningful.
+            </p>
+          </div>
+
+          <div className={styles.criteriaGrid}>
+            {JUDGE_CRITERIA.map((criterion) => (
+              <article
+                key={criterion.id}
+                className={styles.criteriaCard}
+                style={{ "--criterion-accent": criterion.color } as CSSProperties}
+              >
+                <div className={styles.criteriaTop}>
+                  <span className={styles.criteriaId}>{criterion.id}</span>
+                  <span className={styles.criteriaThreshold}>{criterion.threshold}</span>
+                </div>
+                <h3 className={styles.criteriaTitle}>{criterion.label}</h3>
+                <p className={styles.criteriaText}>{criterion.desc}</p>
+              </article>
+            ))}
+          </div>
+
+          <div className={styles.pipelineCard}>
+            <div className={styles.pipelineEyebrow}>Judge pipeline</div>
+            <div className={styles.pipelineFlow}>
+              <div className={styles.pipelineStep}>
+                <strong>Pre-checks</strong>
+                <span>structure and obvious abuse filters</span>
+              </div>
+              <div className={styles.pipelineArrow}>→</div>
+              <div className={styles.pipelineStep}>
+                <strong>Primary judge</strong>
+                <span>main scoring pass</span>
+              </div>
+              <div className={styles.pipelineArrow}>→</div>
+              <div className={styles.pipelineStep}>
+                <strong>Secondary judge</strong>
+                <span>consistency check</span>
+              </div>
+              <div className={styles.pipelineArrow}>→</div>
+              <div className={`${styles.pipelineStep} ${styles.pipelineFocus}`}>
+                <strong>Result</strong>
+                <span>valid work becomes reportable signal</span>
+              </div>
             </div>
-            <span className="font-display tracking-wider text-sm text-white">CLASSIFY</span>
           </div>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Verified human feedback · Powered by World ID &amp; WLD</p>
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>© {new Date().getFullYear()} Classify</p>
+        </section>
+
+        <section className={styles.audienceBand}>
+          <div className={`${styles.shell} ${styles.audienceGrid}`}>
+            <article className={styles.audienceCard}>
+              <div className={styles.sectionEyebrow}>For Companies</div>
+              <h2 className={styles.audienceTitle}>Get evaluation evidence before users find the problem.</h2>
+              <div className={styles.pointList}>
+                {COMPANY_POINTS.map((item) => (
+                  <div key={item} className={styles.pointItem}>
+                    <span className={styles.pointGlyph}>◈</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+              <Link href="/agents/new" className="c-btn-primary">
+                Publish your first listing
+              </Link>
+            </article>
+
+            <article className={`${styles.audienceCard} ${styles.audienceCardAlt}`}>
+              <div className={`${styles.sectionEyebrow} ${styles.sectionEyebrowPass}`}>For Testers</div>
+              <h2 className={styles.audienceTitle}>Earn by doing useful review work.</h2>
+              <div className={styles.pointList}>
+                {TESTER_POINTS.map((item) => (
+                  <div key={item} className={styles.pointItem}>
+                    <span className={`${styles.pointGlyph} ${styles.pointGlyphPass}`}>◈</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+              <Link href="/agents" className="c-btn-ghost">
+                Browse live work
+              </Link>
+            </article>
+          </div>
+        </section>
+
+        <section className={`${styles.shell} ${styles.section}`}>
+          <div className={styles.sectionIntro}>
+            <div className={styles.sectionEyebrow}>Go There Now</div>
+            <h2 className={styles.sectionTitle}>
+              The key surfaces are already live in the app.
+            </h2>
+            <p className={styles.sectionText}>
+              If you want to understand the product quickly, start with the agent marketplace. If you want a simpler review loop,
+              the task sandbox is still available for single-output evaluation.
+            </p>
+          </div>
+
+          <div className={styles.actionGrid}>
+            {LIVE_ENTRY_POINTS.map((item) => (
+              <article key={item.title} className={styles.actionCard}>
+                <h3 className={styles.actionTitle}>{item.title}</h3>
+                <p className={styles.actionText}>{item.body}</p>
+                <Link href={item.href} className="c-btn-ghost" style={{ alignSelf: "flex-start" }}>
+                  {item.cta}
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.ctaSection}>
+          <div className={styles.ctaGlow} aria-hidden />
+          <div className={`${styles.shell} ${styles.ctaWrap}`}>
+            <div className={styles.ctaCard}>
+              <div className={styles.sectionEyebrow}>Ready</div>
+              <h2 className={styles.ctaTitle}>Catch the failure before it reaches production.</h2>
+              <p className={styles.ctaText}>
+                Publish an agent, post an output, or start testing what is already live in the marketplace.
+              </p>
+              <div className={styles.heroActions}>
+                <Link href="/agents/new" className="c-btn-primary">
+                  Publish now
+                </Link>
+                <Link href="/agents" className="c-btn-ghost">
+                  Start testing
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className={styles.footer}>
+        <div className={`${styles.shell} ${styles.footerInner}`}>
+          <span className={styles.footerBrand}>Classify</span>
+          <span className={styles.footerMeta}>Agent testing + output evaluation</span>
+          <span className={styles.footerMeta}>© {new Date().getFullYear()}</span>
         </div>
       </footer>
-
-      <style>{`
-        .landing-nav {
-          position: sticky; top: 0; z-index: 50;
-          border-bottom: 1px solid var(--border);
-          background: rgba(5,5,7,0.88);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-        }
-        .logo-mark {
-          display: flex; align-items: center; justify-content: center;
-          width: 32px; height: 32px; border-radius: 8px;
-          background: var(--signal-dim); border: 1px solid var(--signal-border);
-          flex-shrink: 0;
-        }
-        .lnav-link {
-          border-radius: 8px; padding: 6px 12px;
-          color: var(--text-dim); transition: color 0.15s, background 0.15s;
-        }
-        .lnav-link:hover { color: var(--text); background: rgba(255,255,255,0.05); }
-
-        .hero-section { position: relative; overflow: hidden; }
-        .hero-glow-l {
-          position: absolute; top: -100px; left: -200px;
-          width: 600px; height: 600px; border-radius: 50%; pointer-events: none;
-          background: radial-gradient(circle, rgba(0,255,135,0.07) 0%, transparent 70%);
-        }
-        .hero-glow-r {
-          position: absolute; top: 10%; right: -200px;
-          width: 500px; height: 500px; border-radius: 50%; pointer-events: none;
-          background: radial-gradient(circle, rgba(240,180,41,0.05) 0%, transparent 70%);
-        }
-        .hero-hed {
-          font-family: var(--font-display);
-          font-size: clamp(3.5rem, 8vw, 7rem);
-          line-height: 0.95; letter-spacing: 0.02em;
-          color: white; margin-bottom: 1.5rem;
-        }
-        .hero-hed-outline {
-          color: transparent;
-          -webkit-text-stroke: 1.5px rgba(0, 255, 135, 0.65);
-        }
-        .trust-bar {
-          display: flex; flex-wrap: wrap; align-items: center;
-          gap: 4px; margin-top: 2rem;
-        }
-
-        .ticker-wrap {
-          overflow: hidden;
-          border-top: 1px solid var(--border);
-          border-bottom: 1px solid var(--border);
-          background: rgba(255,255,255,0.008);
-          padding: 11px 0;
-        }
-        .ticker-track {
-          display: flex; white-space: nowrap;
-          animation: ticker 44s linear infinite;
-        }
-        .ticker-seg {
-          padding: 0 40px;
-          font-family: var(--font-mono);
-          font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
-          color: var(--text-muted);
-        }
-
-        .how-card {
-          background: var(--card);
-          border: 1px solid var(--border);
-          border-radius: 20px; padding: 32px;
-        }
-        .how-tag {
-          display: inline-block;
-          font-family: var(--font-mono); font-size: 9px;
-          letter-spacing: 0.2em; text-transform: uppercase;
-          padding: 4px 10px; border-radius: 100px;
-          border-width: 1px; border-style: solid;
-          margin-bottom: 16px;
-        }
-      `}</style>
     </div>
   );
 }

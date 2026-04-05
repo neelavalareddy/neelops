@@ -40,6 +40,16 @@ export interface Response {
   time_to_submit_ms?: number | null;
 }
 
+export interface AppUser {
+  id: string;
+  world_id_nullifier_hash: string;
+  role: "worker" | "company" | "admin";
+  auth_method: "world_id";
+  created_at: string;
+  world_id_verified_at: string;
+  last_sign_in_at: string;
+}
+
 /** One of your evaluations with the task joined (worker dashboard). */
 export type WorkerSummaryRow = Response & { task: Task };
 
@@ -99,6 +109,15 @@ export interface Database {
         Row: AgentMessageEvaluation;
         Insert: Omit<AgentMessageEvaluation, "created_at">;
         Update: Partial<Omit<AgentMessageEvaluation, "message_id" | "created_at">>;
+        Relationships: [];
+      };
+      app_users: {
+        Row: AppUser;
+        Insert: Omit<AppUser, "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Omit<AppUser, "id" | "created_at">>;
         Relationships: [];
       };
     };

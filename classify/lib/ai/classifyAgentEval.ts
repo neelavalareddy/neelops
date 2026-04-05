@@ -1,4 +1,5 @@
-import { callClaude, isAnthropicConfigured, parseJsonObject } from "@/lib/ai/anthropic";
+import { callClaude, parseJsonObject } from "@/lib/ai/anthropic";
+import { isLlmConfigured } from "@/lib/ai/llm";
 
 export type ClassifyEvalResult = {
   relevance_1_5: number;
@@ -17,12 +18,12 @@ export async function evaluateAgentUserMessage(
   transcript: string,
   latestUserMessage: string
 ): Promise<ClassifyEvalResult> {
-  if (!isAnthropicConfigured()) {
+  if (!isLlmConfigured()) {
     return {
       relevance_1_5: 3,
       ai_likelihood_0_1: 0.5,
       rules_compliant: true,
-      rationale: "Evaluator offline — set ANTHROPIC_API_KEY for real checks.",
+      rationale: "Evaluator offline — set AI_PROVIDER=local and LOCAL_LLM_*.",
     };
   }
 

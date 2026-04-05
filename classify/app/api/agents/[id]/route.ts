@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PUBLIC_AGENT_SELECT } from "@/lib/agents";
 import { createClient, hasSupabaseEnv } from "@/lib/supabase/server";
 import type { Agent } from "@/types/agents";
 
@@ -14,7 +15,7 @@ export async function GET(_request: Request, { params }: Ctx) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("agents")
-    .select("*")
+    .select(PUBLIC_AGENT_SELECT)
     .eq("id", id)
     .single() as { data: Agent | null; error: unknown };
 

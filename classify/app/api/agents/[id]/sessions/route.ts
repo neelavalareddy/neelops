@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { PUBLIC_AGENT_SELECT } from "@/lib/agents";
 import { createServiceClient, hasSupabaseServiceEnv } from "@/lib/supabase/server";
 import type { Agent, AgentMessage, AgentSession } from "@/types/agents";
 
@@ -22,7 +23,7 @@ export async function POST(request: Request, { params }: Ctx) {
 
     const { data: agent, error: aErr } = await supabase
       .from("agents")
-      .select("*")
+      .select(PUBLIC_AGENT_SELECT)
       .eq("id", agent_id)
       .single() as { data: Agent | null; error: unknown };
 
